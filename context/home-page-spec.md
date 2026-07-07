@@ -120,10 +120,10 @@ Header розташований у верхній частині сторінк�
 
 Поля для входу:
 
-1. Email або username.
+1. Email.
 2. Password.
 3. Login button.
-4. OAuth buttons, якщо вони вже доступні в реалізації.
+4. Google OAuth button.
 
 ### Register Fields
 
@@ -134,7 +134,7 @@ Header розташований у верхній частині сторінк�
 3. Password.
 4. Confirm password.
 5. Register button.
-6. OAuth buttons, якщо вони вже доступні в реалізації.
+6. Google OAuth button.
 
 ### Auth Panel Style
 
@@ -163,7 +163,7 @@ Footer має бути внизу сторінки і відокремлений
 Footer має містити:
 
 1. Рік.
-2. Мови перекладу: `UKR`, `ENG`.
+2. Статичні мови перекладу: `UKR`, `ENG`.
 3. Іконки соціальних мереж:
    - TikTok
    - Threads
@@ -207,13 +207,30 @@ Footer має містити:
 3. `src/components/layout/Footer.jsx`
 4. `src/components/auth/AuthPanel.jsx`
 5. `src/components/home/GameVisual.jsx`
-6. `src/styles/theme.css`
-7. `src/styles/home-page.css`
+6. `src/assets/home-hero-placeholder.png`
+7. `src/styles/theme.css`
+8. `src/styles/home-page.css`
 
-## Open Questions
+## Confirmed Decisions
 
-1. Який саме формат авторизації буде першим: email/password, username/password, або обидва?
-2. Який OAuth-провайдер потрібен у першій версії: Google, Discord, GitHub, Apple, інший?
-3. Чи потрібен перемикач мови вже на головній сторінці, чи поки достатньо статичних `UKR` / `ENG` у footer?
-4. Чи має `Про гру` і `Як грати` вести на секції цієї ж сторінки, чи на окремі сторінки?
-5. Чи потрібно одразу генерувати placeholder-зображення для hero-візуалу, чи поки достатньо опису для майбутнього арту?
+1. Перший формат авторизації: email/password.
+2. OAuth-провайдер першої версії: Google.
+3. У footer достатньо статичних мов `UKR` / `ENG`.
+4. Пункти меню `Про гру` і `Як грати` мають вести на окремі сторінки пізніше.
+5. Для hero-зони потрібен згенерований placeholder-візуал.
+
+## Placeholder Visual Requirements
+
+Перший placeholder-візуал має бути збережений як:
+
+`src/assets/home-hero-placeholder.png`
+
+Візуал має передавати:
+
+1. Нуарний cyberpunk-настрій.
+2. Місто Eclipcity у 2150 році.
+3. Темний тунель або вихід з міста.
+4. Неонові акценти згідно палітри.
+5. Натяк на карткову гру без читабельного тексту на самому зображенні.
+
+Зображення не має містити логотипів, watermark, UI-елементів або згенерованого тексту.
