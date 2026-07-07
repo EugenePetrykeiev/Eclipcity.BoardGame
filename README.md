@@ -2,6 +2,27 @@
 
 Eclipcity is a desktop multiplayer browser card game about escaping a noir, exhausted city in the year 2150.
 
+## Local Frontend
+
+The first home/auth page is implemented as a React app.
+
+```bash
+npm install
+npm run dev
+```
+
+Then open the local URL printed by Vite.
+
+For a production build and home-page smoke test:
+
+```bash
+npm run build
+npm run preview
+npm run validate:home
+```
+
+The auth panel currently uses a client-side preview service. It validates form input, stores a temporary preview session in `localStorage`, and is ready to be replaced by FastAPI endpoints later. See `docs/auth-integration.md`.
+
 We are building a tense tabletop-like digital experience for up to five players. Each player controls a team of fugitives: seven prisoners who were locked away for resisting the system, finally broke free, and now must cross the tunnel out of Eclipcity before the city swallows them again.
 
 The escape is not only about running. The fugitives need equipment, courage, memory, power, navigation, money, and weapons. Those objects are scattered across the route, and every card played is a choice about who moves, who falls back, and how much risk the team can afford.
