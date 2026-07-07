@@ -1,56 +1,47 @@
-const PREVIEW_SESSION_KEY = "eclipcity.preview.auth";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
 
-function delay(ms = 450) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
-function persistPreviewSession(payload) {
-  window.localStorage.setItem(
-    PREVIEW_SESSION_KEY,
-    JSON.stringify({
-      ...payload,
-      createdAt: new Date().toISOString()
-    })
-  );
+function requireApiBaseUrl() {
+  if (!API_BASE_URL) {
+    throw new Error("VITE_API_BASE_URL не налаштовано для підключення backend.");
+  }
+  return API_BASE_URL;
 }
 
 export async function submitAuthForm(mode, values) {
-  await delay();
-
-  const profile =
+  const apiBaseUrl = requireApiBaseUrl();
+  const endpoint = mode === "register" ? "/auth/register" : "/auth/login";
+  const body =
     mode === "register"
-      ? values.username.trim()
-      : values.email.trim().split("@")[0];
+      ? {
+          username: values.username.trim(),
+          email: values.email.trim(),
+          password: values.password
+        }
+      : {
+          email: values.email.trim(),
+          password: values.password
+        };
 
-  persistPreviewSession({
-    mode,
-    provider: "email",
-    profile,
-    email: values.email.trim()
+  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    credentials: "include",
+    body: JSON.stringify(body)
   });
 
-  return {
-    ok: true,
-    message:
-      mode === "register"
-        ? "Профіль створено локально для preview. Далі буде підключення FastAPI."
-        : "Вхід підтверджено локально для preview. Ігрова зона буде наступним екраном."
-  };
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || "Auth request failed.");
+  }
+
+  return payload;
 }
 
-export async function startGoogleOAuth(mode) {
-  await delay(350);
-
-  persistPreviewSession({
-    mode,
-    provider: "google",
-    profile: "google-player"
-  });
-
-  return {
-    ok: true,
-    message: "Google OAuth підготовлено як preview-заглушку до підключення бекенду."
-  };
+export function startGoogleOAuth(mode) {
+  const apiBaseUrl = requireApiBaseUrl();
+  const params = new URLSearchParams({ mode });
+  window.location.assign(`${apiBaseUrl}/auth/google/start?${params.toString()}`);
 }

@@ -1,0 +1,9 @@
+aws_region            = "eu-central-1"
+instance_name         = "postgres-t4g-micro"
+instance_type         = "t4g.micro"
+key_name              = "pg-t4g-key"
+public_key_path       = "./pg-t4g-key.pub"
+private_key_path      = "./pg-t4g-key"
+ssh_allowed_cidr      = "95.91.245.200/32"
+postgres_allowed_cidr = "95.91.245.200/32"
+root_volume_size_gb   = 20

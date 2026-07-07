@@ -1,6 +1,55 @@
-node_modules
-dist
+# OS files
 .DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Local environment and secrets
 .env
-.env.local
+.env.*
+!.env.example
+!.env.*.example
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Test and browser artifacts
+coverage/
+playwright-report/
+test-results/
+
+# Terraform local state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo

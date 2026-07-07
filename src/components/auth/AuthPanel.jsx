@@ -89,17 +89,19 @@ export default function AuthPanel() {
   }
 
   async function handleGoogleClick() {
-    setIsSubmitting(true);
     setStatus(null);
     try {
-      const result = await startGoogleOAuth(mode);
-      setStatus({ type: "success", message: result.message });
+      setIsSubmitting(true);
+      setStatus({
+        type: "success",
+        message: "Переходимо до Google OAuth..."
+      });
+      startGoogleOAuth(mode);
     } catch (error) {
       setStatus({
         type: "error",
         message: error.message || "Google OAuth тимчасово недоступний."
       });
-    } finally {
       setIsSubmitting(false);
     }
   }

@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-const url = process.env.ECLIPCITY_URL || "http://127.0.0.1:4173/";
+const url = process.env.ECLIPCITY_URL || "http://127.0.0.1:5173/";
 const executablePath =
   process.env.CHROME_EXECUTABLE_PATH ||
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -55,14 +55,10 @@ const validationVisible = await page
   .getByText("Введи коректний email.")
   .isVisible();
 
-await page.locator('input[name="username"]').fill("runner_2150");
-await page.locator('input[name="email"]').fill("runner@example.com");
-await page.locator('input[name="password"]').fill("secret2150");
-await page.locator('input[name="confirmPassword"]').fill("secret2150");
-await page.getByRole("button", { name: "Зареєструватися" }).click();
-await page
-  .getByText("Профіль створено локально для preview.")
-  .waitFor({ timeout: 3000 });
+const usernameVisible = await page.locator('input[name="username"]').isVisible();
+const googleButtonVisible = await page
+  .getByRole("button", { name: /Google OAuth/ })
+  .isVisible();
 
 await page.screenshot({
   fullPage: true,
@@ -77,6 +73,8 @@ console.log(
       url,
       mobileMetrics,
       validationVisible,
+      usernameVisible,
+      googleButtonVisible,
       consoleErrors
     },
     null,
