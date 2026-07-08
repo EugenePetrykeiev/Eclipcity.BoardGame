@@ -74,9 +74,13 @@ export default function AuthPanel() {
     setIsSubmitting(true);
     try {
       const result = await submitAuthForm(mode, values);
+      const emailStatus =
+        result.email_delivery_status && result.email_delivery_status !== "sent"
+          ? ` Статус email: ${result.email_delivery_status}.`
+          : "";
       setStatus({
         type: "success",
-        message: result.message
+        message: `${result.message}${emailStatus}`
       });
     } catch (error) {
       setStatus({

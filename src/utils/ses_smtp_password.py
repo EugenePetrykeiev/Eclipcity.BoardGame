@@ -6,6 +6,7 @@ import base64
 import sys
 
 MESSAGE = "SendRawEmail"
+DATE = "11111111"
 VERSION = b"\x04"
 
 def sign(key, msg):
@@ -18,7 +19,8 @@ if len(sys.argv) != 3:
 secret_access_key = sys.argv[1]
 region = sys.argv[2]
 
-signature = sign(("AWS4" + secret_access_key).encode("utf-8"), region)
+signature = sign(("AWS4" + secret_access_key).encode("utf-8"), DATE)
+signature = sign(signature, region)
 signature = sign(signature, "ses")
 signature = sign(signature, "aws4_request")
 signature = sign(signature, MESSAGE)

@@ -98,7 +98,7 @@ async def register(
             payload.email,
             payload.password,
         )
-        await send_welcome_email(db, settings, user)
+        email_delivery_status = await send_welcome_email(db, settings, user)
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
@@ -112,6 +112,7 @@ async def register(
         user=UserResponse.model_validate(user),
         next=settings.post_auth_redirect_path,
         message="Профіль створено. Ласкаво просимо до Eclipcity.",
+        email_delivery_status=email_delivery_status,
     )
 
 

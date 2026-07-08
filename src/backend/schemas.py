@@ -30,3 +30,4 @@ class AuthResponse(BaseModel):
     user: UserResponse
     next: str
     message: str
+    email_delivery_status: str | None = None

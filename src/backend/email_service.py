@@ -1,6 +1,8 @@
 from email.message import EmailMessage
+import ssl
 
 import aiosmtplib
+import certifi
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import Settings
@@ -14,24 +16,24 @@ async def record_email_delivery(
     subject: str,
     status: str,
     provider_message: str | None = None,
-) -> None:
-    db.add(
-        EmailDelivery(
-            user_id=user.id,
-            to_email=user.email,
-            subject=subject,
-            status=status,
-            provider_message=provider_message,
-        )
+) -> EmailDelivery:
+    delivery = EmailDelivery(
+        user_id=user.id,
+        to_email=user.email,
+        subject=subject,
+        status=status,
+        provider_message=provider_message,
     )
+    db.add(delivery)
     await db.flush()
+    return delivery
 
 
 async def send_welcome_email(
     db: AsyncSession,
     settings: Settings,
     user: User,
-) -> None:
+) -> str:
     if not settings.smtp_configured():
         await record_email_delivery(
             db,
@@ -40,7 +42,7 @@ async def send_welcome_email(
             "skipped",
             "SMTP is not configured.",
         )
-        return
+        return "skipped"
 
     text_body, html_body = render_welcome_email(user.username)
     message = EmailMessage()
@@ -51,6 +53,7 @@ async def send_welcome_email(
     message.add_alternative(html_body, subtype="html")
 
     try:
+        tls_context = ssl.create_default_context(cafile=certifi.where())
         await aiosmtplib.send(
             message,
             hostname=settings.smtp_host,
@@ -58,6 +61,7 @@ async def send_welcome_email(
             username=settings.smtp_username,
             password=settings.smtp_password,
             start_tls=settings.smtp_use_tls,
+            tls_context=tls_context,
         )
     except Exception as error:
         await record_email_delivery(
@@ -67,6 +71,7 @@ async def send_welcome_email(
             "failed",
             str(error),
         )
-        return
+        return "failed"
 
     await record_email_delivery(db, user, WELCOME_SUBJECT, "sent")
+    return "sent"

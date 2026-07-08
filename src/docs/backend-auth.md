@@ -94,6 +94,24 @@ Created tables:
 }
 ```
 
+Successful response includes the welcome email status:
+
+```json
+{
+  "user": {
+    "id": "user-id",
+    "username": "runner_2150",
+    "email": "runner@example.com",
+    "email_verified": false,
+    "avatar_url": null,
+    "created_at": "2026-07-07T19:45:00Z"
+  },
+  "next": "/",
+  "message": "Профіль створено. Ласкаво просимо до Eclipcity.",
+  "email_delivery_status": "sent"
+}
+```
+
 `POST /auth/login`
 
 ```json
@@ -209,9 +227,15 @@ SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USERNAME=...
 SMTP_PASSWORD=...
-SMTP_FROM_EMAIL=no-reply@example.com
+SMTP_FROM_EMAIL=no-reply@eclipcity.digitee.space
 SMTP_FROM_NAME=Eclipcity
 SMTP_USE_TLS=true
 ```
 
 If SMTP is not configured, the backend records the welcome email as `skipped` in `email_deliveries` and continues registration.
+
+Delivery status values:
+
+1. `sent` - SMTP accepted the message.
+2. `failed` - SMTP sending raised an error; the error is stored in `provider_message`.
+3. `skipped` - SMTP is not configured, so registration continued without sending.
