@@ -106,7 +106,7 @@ Successful response includes the welcome email status:
     "avatar_url": null,
     "created_at": "2026-07-07T19:45:00Z"
   },
-  "next": "/",
+  "next": "/user/user-id",
   "message": "Профіль створено. Ласкаво просимо до Eclipcity.",
   "email_delivery_status": "sent"
 }
@@ -132,6 +132,10 @@ Google returns the user here after consent.
 `GET /auth/me`
 
 Returns the current user from the signed session cookie.
+
+`GET /users/{user_id}`
+
+Returns the current user's profile for the `/user/{uuid}` page. The backend returns `403` if the requested UUID does not match the authenticated session user.
 
 `POST /auth/logout`
 

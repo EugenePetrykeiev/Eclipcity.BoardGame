@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Eclipcity default user avatar</title>
+  <desc id="desc">Cyberpunk placeholder avatar for Eclipcity users.</desc>
+  <rect width="256" height="256" rx="24" fill="#0A0E14"/>
+  <path d="M24 178 93 34h70l69 144-35 44H59z" fill="#141A24" stroke="#1E2530" stroke-width="6"/>
+  <path d="M68 172 112 72h32l44 100-19 24H87z" fill="#0D121A" stroke="#B6FF00" stroke-width="5"/>
+  <path d="M93 145h70v22H93z" fill="#B6FF00"/>
+  <path d="M82 112h32v22H82zm60 0h32v22h-32z" fill="#FF2E9A"/>
+  <path d="M74 198h108" stroke="#FF2E9A" stroke-width="5" stroke-linecap="round"/>
+  <path d="M48 58h42M166 58h42M36 84h32M188 84h32" stroke="#7B2FFF" stroke-width="4" stroke-linecap="round" opacity=".75"/>
+  <path d="M118 92h20v80h-20z" fill="#E6EAF0" opacity=".16"/>
+</svg>

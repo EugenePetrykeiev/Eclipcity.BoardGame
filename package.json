@@ -7,10 +7,12 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "validate:home": "node scripts/validate-home.mjs"
+    "validate:home": "node scripts/validate-home.mjs",
+    "validate:user": "node scripts/validate-user.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "lucide-react": "^1.23.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "vite": "^6.0.7"

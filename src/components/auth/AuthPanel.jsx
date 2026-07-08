@@ -82,6 +82,11 @@ export default function AuthPanel() {
         type: "success",
         message: `${result.message}${emailStatus}`
       });
+      if (result.next) {
+        window.setTimeout(() => {
+          window.location.assign(result.next);
+        }, 450);
+      }
     } catch (error) {
       setStatus({
         type: "error",

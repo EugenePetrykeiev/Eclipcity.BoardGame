@@ -45,3 +45,18 @@ export function startGoogleOAuth(mode) {
   const params = new URLSearchParams({ mode });
   window.location.assign(`${apiBaseUrl}/auth/google/start?${params.toString()}`);
 }
+
+export async function getUserProfile(userId) {
+  const apiBaseUrl = requireApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/users/${userId}`, {
+    credentials: "include"
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || "User request failed.");
+  }
+
+  return payload;
+}

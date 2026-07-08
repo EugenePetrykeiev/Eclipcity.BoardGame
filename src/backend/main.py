@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -55,6 +57,15 @@ def set_session_cookie(response: Response, user_id) -> None:
     )
 
 
+def user_page_path(user_id) -> str:
+    return f"/user/{user_id}"
+
+
+def user_page_url(user_id) -> str:
+    base = str(settings.frontend_base_url).rstrip("/")
+    return f"{base}{user_page_path(user_id)}"
+
+
 async def current_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -110,7 +121,7 @@ async def register(
     set_session_cookie(response, user.id)
     return AuthResponse(
         user=UserResponse.model_validate(user),
-        next=settings.post_auth_redirect_path,
+        next=user_page_path(user.id),
         message="Профіль створено. Ласкаво просимо до Eclipcity.",
         email_delivery_status=email_delivery_status,
     )
@@ -132,13 +143,23 @@ async def login(
     set_session_cookie(response, user.id)
     return AuthResponse(
         user=UserResponse.model_validate(user),
-        next=settings.post_auth_redirect_path,
+        next=user_page_path(user.id),
         message="Вхід виконано. Сесію Eclipcity відкрито.",
     )
 
 
 @app.get("/auth/me", response_model=UserResponse)
 async def me(user: UserResponse = Depends(current_user)) -> UserResponse:
+    return user
+
+
+@app.get("/users/{user_id}", response_model=UserResponse)
+async def user_profile(
+    user_id: uuid.UUID,
+    user: UserResponse = Depends(current_user),
+) -> UserResponse:
+    if user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     return user
 
 
@@ -189,6 +210,6 @@ async def google_callback(
 
     await db.commit()
 
-    redirect = RedirectResponse(settings.frontend_redirect_url())
+    redirect = RedirectResponse(user_page_url(user.id))
     set_session_cookie(redirect, user.id)
     return redirect
