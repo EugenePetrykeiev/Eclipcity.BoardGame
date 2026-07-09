@@ -17,7 +17,27 @@ from .config import Settings, get_settings
 from .database import create_tables, get_db
 from .email_service import send_welcome_email
 from .google_oauth import authorization_url, exchange_google_code
-from .schemas import AuthResponse, LoginRequest, RegisterRequest, UserResponse
+from .lobby_repository import (
+    create_lobby,
+    get_lobby_by_code,
+    join_lobby,
+    kick_lobby_player,
+    leave_lobby,
+    list_public_lobbies,
+    lobby_path,
+    update_lobby_player,
+)
+from .models import Lobby
+from .schemas import (
+    AuthResponse,
+    LobbyCreateRequest,
+    LobbyPlayerUpdateRequest,
+    LobbyResponse,
+    LobbySummaryResponse,
+    LoginRequest,
+    RegisterRequest,
+    UserResponse,
+)
 from .security import (
     create_oauth_state,
     create_session_token,
@@ -33,7 +53,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -64,6 +84,40 @@ def user_page_path(user_id) -> str:
 def user_page_url(user_id) -> str:
     base = str(settings.frontend_base_url).rstrip("/")
     return f"{base}{user_page_path(user_id)}"
+
+
+def serialize_lobby(lobby: Lobby, user: UserResponse) -> LobbyResponse:
+    players = list(lobby.players)
+    is_member = any(player.user_id == user.id for player in players)
+    is_host = any(player.user_id == user.id and player.is_host for player in players)
+    return LobbyResponse(
+        id=lobby.id,
+        code=lobby.code,
+        name=lobby.name,
+        max_players=lobby.max_players,
+        player_count=len(players),
+        is_public=lobby.is_public,
+        status=lobby.status,
+        created_at=lobby.created_at,
+        players=players,
+        events=list(lobby.events),
+        is_member=is_member,
+        is_host=is_host,
+        path=lobby_path(lobby.code),
+    )
+
+
+def serialize_lobby_summary(lobby: Lobby) -> LobbySummaryResponse:
+    return LobbySummaryResponse(
+        id=lobby.id,
+        code=lobby.code,
+        name=lobby.name,
+        max_players=lobby.max_players,
+        player_count=len(lobby.players),
+        is_public=lobby.is_public,
+        status=lobby.status,
+        created_at=lobby.created_at,
+    )
 
 
 async def current_user(
@@ -153,6 +207,31 @@ async def me(user: UserResponse = Depends(current_user)) -> UserResponse:
     return user
 
 
+@app.get("/auth/session")
+async def session_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    token = request.cookies.get(settings.session_cookie_name)
+    if not token:
+        return {"authenticated": False, "user": None, "next": None}
+
+    user_id = read_session_token(settings, token)
+    if not user_id:
+        return {"authenticated": False, "user": None, "next": None}
+
+    user = await get_user_by_id(db, user_id)
+    if not user:
+        return {"authenticated": False, "user": None, "next": None}
+
+    user_response = UserResponse.model_validate(user)
+    return {
+        "authenticated": True,
+        "user": user_response.model_dump(mode="json"),
+        "next": user_page_path(user.id),
+    }
+
+
 @app.get("/users/{user_id}", response_model=UserResponse)
 async def user_profile(
     user_id: uuid.UUID,
@@ -161,6 +240,146 @@ async def user_profile(
     if user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     return user
+
+
+@app.get("/lobbies/public", response_model=list[LobbySummaryResponse])
+async def public_lobbies(
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[LobbySummaryResponse]:
+    del user
+    lobbies = await list_public_lobbies(db)
+    return [serialize_lobby_summary(lobby) for lobby in lobbies]
+
+
+@app.post("/lobbies", response_model=LobbyResponse)
+async def create_lobby_endpoint(
+    payload: LobbyCreateRequest,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LobbyResponse:
+    lobby = await create_lobby(db, user, payload)
+    await db.commit()
+    return serialize_lobby(lobby, user)
+
+
+@app.get("/lobbies/{lobby_code}", response_model=LobbyResponse)
+async def lobby_details(
+    lobby_code: str,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LobbyResponse:
+    lobby = await get_lobby_by_code(db, lobby_code)
+    if not lobby or lobby.status != "waiting":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return serialize_lobby(lobby, user)
+
+
+@app.get("/lobby/{lobby_code}", response_model=LobbyResponse)
+async def lobby_route_alias(
+    lobby_code: str,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LobbyResponse:
+    return await lobby_details(lobby_code, user, db)
+
+
+@app.post("/lobbies/{lobby_code}/join", response_model=LobbyResponse)
+async def join_lobby_endpoint(
+    lobby_code: str,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LobbyResponse:
+    try:
+        lobby = await join_lobby(db, lobby_code, user)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+    if not lobby:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_lobby(lobby, user)
+
+
+@app.patch("/lobbies/{lobby_code}/players/me", response_model=LobbyResponse)
+async def update_lobby_player_endpoint(
+    lobby_code: str,
+    payload: LobbyPlayerUpdateRequest,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LobbyResponse:
+    try:
+        lobby = await update_lobby_player(db, lobby_code, user, payload)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+
+    if not lobby:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_lobby(lobby, user)
+
+
+@app.post("/lobbies/{lobby_code}/leave", response_model=LobbyResponse | dict[str, str])
+async def leave_lobby_endpoint(
+    lobby_code: str,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LobbyResponse | dict[str, str]:
+    try:
+        lobby = await leave_lobby(db, lobby_code, user)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+
+    if not lobby:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    if lobby.status == "closed":
+        return {"message": "Lobby closed.", "next": user_page_path(user.id)}
+    return serialize_lobby(lobby, user)
+
+
+@app.delete("/lobbies/{lobby_code}/players/{player_user_id}", response_model=LobbyResponse)
+async def kick_lobby_player_endpoint(
+    lobby_code: str,
+    player_user_id: uuid.UUID,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LobbyResponse:
+    try:
+        lobby = await kick_lobby_player(db, lobby_code, player_user_id, user)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+    except LookupError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+
+    if not lobby:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_lobby(lobby, user)
 
 
 @app.post("/auth/logout")

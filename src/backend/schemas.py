@@ -1,7 +1,30 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+DEFAULT_LOBBY_NAME = "Untitled lobby"
+ALLOWED_LOBBY_SYMBOLS = set(" !@#$%^&*(),./|\\?`~")
+TeamColor = Literal["green", "purple", "orange", "pink", "turquoise"]
+
+
+def is_lobby_name_character_allowed(character: str) -> bool:
+    return character.isalnum() or character in ALLOWED_LOBBY_SYMBOLS
+
+
+def normalize_lobby_name(value: str | None) -> str:
+    name = (value or "").strip()
+    if not name:
+        return DEFAULT_LOBBY_NAME
+    if len(name) < 3:
+        raise ValueError("Lobby name must contain at least 3 characters.")
+    if len(name) > 12:
+        raise ValueError("Lobby name must contain at most 12 characters.")
+    if not all(is_lobby_name_character_allowed(character) for character in name):
+        raise ValueError("Lobby name contains unsupported characters.")
+    return name
 
 
 class RegisterRequest(BaseModel):
@@ -31,3 +54,56 @@ class AuthResponse(BaseModel):
     next: str
     message: str
     email_delivery_status: str | None = None
+
+
+class LobbyCreateRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=12, validate_default=True)
+    max_players: int = Field(ge=2, le=5)
+    is_public: bool = True
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str:
+        return normalize_lobby_name(value)
+
+
+class LobbyPlayerUpdateRequest(BaseModel):
+    team_color: TeamColor
+
+
+class LobbyPlayerResponse(BaseModel):
+    user_id: uuid.UUID
+    nickname: str
+    team_color: TeamColor
+    is_host: bool
+    joined_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LobbyEventResponse(BaseModel):
+    id: uuid.UUID
+    event_type: str
+    message: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LobbySummaryResponse(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    max_players: int
+    player_count: int
+    is_public: bool
+    status: str
+    created_at: datetime
+
+
+class LobbyResponse(LobbySummaryResponse):
+    players: list[LobbyPlayerResponse]
+    events: list[LobbyEventResponse]
+    is_member: bool
+    is_host: bool
+    path: str

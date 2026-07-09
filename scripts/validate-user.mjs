@@ -40,9 +40,73 @@ await page.route("http://127.0.0.1:8000/users/**", async (route) => {
   });
 });
 
+const lobbyPayload = {
+  id: "223e4567-e89b-12d3-a456-426614174111",
+  code: "R7K2Q",
+  name: "Run#7",
+  max_players: 5,
+  player_count: 1,
+  is_public: true,
+  status: "waiting",
+  created_at: "2026-07-09T12:00:00Z",
+  players: [
+    {
+      user_id: userId,
+      nickname: "runner_2150",
+      team_color: "green",
+      is_host: true,
+      joined_at: "2026-07-09T12:00:00Z"
+    }
+  ],
+  events: [
+    {
+      id: "323e4567-e89b-12d3-a456-426614174222",
+      event_type: "created",
+      message: 'runner_2150 створив лоббі "Run#7".',
+      created_at: "2026-07-09T12:00:00Z"
+    }
+  ],
+  is_member: true,
+  is_host: true,
+  path: "/lobby/R7K2Q"
+};
+
+await page.route("http://127.0.0.1:8000/lobbies", async (route) => {
+  if (route.request().method() !== "POST") {
+    await route.fallback();
+    return;
+  }
+
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(lobbyPayload)
+  });
+});
+
+await page.route("http://127.0.0.1:8000/lobbies/R7K2Q", async (route) => {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(lobbyPayload)
+  });
+});
+
+await page.route("http://127.0.0.1:8000/lobbies/R7K2Q/leave", async (route) => {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      message: "Lobby left.",
+      next: `/user/${userId}`
+    })
+  });
+});
+
 await page.goto(url, { waitUntil: "networkidle" });
 
-const mobileMetrics = await page.evaluate(() => {
+async function collectMobileMetrics() {
+  return page.evaluate(() => {
   const width = document.documentElement.clientWidth;
   const offenders = [...document.body.querySelectorAll("*")]
     .map((element) => {
@@ -64,14 +128,71 @@ const mobileMetrics = await page.evaluate(() => {
     offenders
   };
 });
+}
 
-await page.getByRole("button", { name: "Створити лоббі" }).click();
-const toastVisible = await page
-  .getByText("Викликано дію: створити лоббі.")
+await page.getByRole("button", { name: "Почати гру" }).click();
+await page.getByRole("button", { name: "Створити гру" }).click();
+await page.getByRole("textbox", { name: "Назва лоббі" }).fill("Run#7");
+await page.getByRole("button", { name: "Створити", exact: true }).click();
+await page.locator(".lobby-code-badge").waitFor({ state: "visible" });
+
+const lobbyVisible = await page.getByRole("heading", { name: "Run#7" }).isVisible();
+const lobbyUserVisible = await page.getByRole("cell", { name: "runner_2150" }).isVisible();
+const lobbyStartVisible = await page.getByRole("button", { name: "Старт" }).isVisible();
+const startGameLabelVisible = await page
+  .getByRole("button", { name: "Лоббі створено" })
+  .isVisible();
+const lobbyCodeVisible = await page
+  .locator(".lobby-code-badge")
+  .filter({ hasText: "ID: R7K2Q" })
+  .isVisible();
+
+await page.getByRole("button", { name: "Налаштування" }).click();
+const minimizedLobbyVisible = await page.getByLabel("Згорнуте лоббі").isVisible();
+
+await page.getByRole("button", { name: "Розгорнути лоббі" }).click();
+await page.getByRole("button", { name: "Покинути лоббі" }).click();
+await page.getByText("Тут буде персональний профіль гравця").waitFor({
+  state: "visible"
+});
+const profileMockVisible = await page
+  .getByText("Тут буде персональний профіль гравця")
+  .isVisible();
+await page.getByRole("button", { name: "Почати гру" }).waitFor({ state: "visible" });
+const startGameResetVisible = await page
+  .getByRole("button", { name: "Почати гру" })
   .isVisible();
 
 await page.getByRole("button", { name: /Вимкнути звуки/ }).click();
 const soundToastVisible = await page.getByText("Звуки вимкнено.").isVisible();
+await page.getByRole("button", { name: "EN" }).click();
+const englishStartVisible = await page
+  .getByRole("button", { name: "Start game" })
+  .isVisible();
+
+const mobileMetrics = await collectMobileMetrics();
+const requiredChecks = {
+  lobbyVisible,
+  lobbyUserVisible,
+  lobbyStartVisible,
+  startGameLabelVisible,
+  lobbyCodeVisible,
+  minimizedLobbyVisible,
+  profileMockVisible,
+  startGameResetVisible,
+  soundToastVisible,
+  englishStartVisible,
+  noConsoleErrors: consoleErrors.length === 0,
+  noMobileOverflow: mobileMetrics.offenders.length === 0
+};
+
+const failedChecks = Object.entries(requiredChecks)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (failedChecks.length > 0) {
+  throw new Error(`User page validation failed: ${failedChecks.join(", ")}`);
+}
 
 await page.screenshot({
   fullPage: true,
@@ -85,8 +206,16 @@ console.log(
     {
       url,
       mobileMetrics,
-      toastVisible,
+      lobbyVisible,
+      lobbyUserVisible,
+      lobbyStartVisible,
+      startGameLabelVisible,
+      lobbyCodeVisible,
+      minimizedLobbyVisible,
+      profileMockVisible,
+      startGameResetVisible,
       soundToastVisible,
+      englishStartVisible,
       consoleErrors
     },
     null,

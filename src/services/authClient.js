@@ -7,6 +7,34 @@ function requireApiBaseUrl() {
   return API_BASE_URL;
 }
 
+function formatApiError(payload, fallback) {
+  const detail = payload.detail || payload.message;
+
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (item?.msg) {
+          return item.msg;
+        }
+        return JSON.stringify(item);
+      })
+      .join(" ");
+  }
+
+  if (detail && typeof detail === "object") {
+    return detail.msg || JSON.stringify(detail);
+  }
+
+  return fallback;
+}
+
 export async function submitAuthForm(mode, values) {
   const apiBaseUrl = requireApiBaseUrl();
   const endpoint = mode === "register" ? "/auth/register" : "/auth/login";
@@ -34,7 +62,7 @@ export async function submitAuthForm(mode, values) {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(payload.detail || payload.message || "Auth request failed.");
+    throw new Error(formatApiError(payload, "Auth request failed."));
   }
 
   return payload;
@@ -55,8 +83,98 @@ export async function getUserProfile(userId) {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(payload.detail || payload.message || "User request failed.");
+    throw new Error(formatApiError(payload, "User request failed."));
   }
 
   return payload;
+}
+
+export async function getCurrentUser() {
+  const apiBaseUrl = requireApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/auth/me`, {
+    credentials: "include"
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(formatApiError(payload, "Current user request failed."));
+  }
+
+  return payload;
+}
+
+export async function getAuthSession() {
+  const apiBaseUrl = requireApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/auth/session`, {
+    credentials: "include"
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(formatApiError(payload, "Session request failed."));
+  }
+
+  return payload;
+}
+
+async function lobbyRequest(endpoint, options = {}) {
+  const apiBaseUrl = requireApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+    credentials: "include",
+    ...options,
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers
+    }
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(formatApiError(payload, "Lobby request failed."));
+  }
+
+  return payload;
+}
+
+export function listPublicLobbies() {
+  return lobbyRequest("/lobbies/public");
+}
+
+export function createLobby(values) {
+  return lobbyRequest("/lobbies", {
+    method: "POST",
+    body: JSON.stringify(values)
+  });
+}
+
+export function getLobbyDetails(code) {
+  return lobbyRequest(`/lobbies/${code}`);
+}
+
+export function joinLobbyByCode(code) {
+  return lobbyRequest(`/lobbies/${code}/join`, {
+    method: "POST"
+  });
+}
+
+export function updateLobbyPlayer(code, values) {
+  return lobbyRequest(`/lobbies/${code}/players/me`, {
+    method: "PATCH",
+    body: JSON.stringify(values)
+  });
+}
+
+export function leaveLobbyByCode(code) {
+  return lobbyRequest(`/lobbies/${code}/leave`, {
+    method: "POST"
+  });
+}
+
+export function kickLobbyPlayer(code, userId) {
+  return lobbyRequest(`/lobbies/${code}/players/${userId}`, {
+    method: "DELETE"
+  });
 }
