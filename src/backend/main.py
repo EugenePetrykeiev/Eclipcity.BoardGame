@@ -17,6 +17,16 @@ from .config import Settings, get_settings
 from .database import create_tables, get_db
 from .email_service import send_welcome_email
 from .google_oauth import authorization_url, exchange_google_code
+from .game_repository import (
+    access_game,
+    disconnect_deadline,
+    game_path,
+    get_active_game_for_user,
+    heartbeat_game_player,
+    leave_game,
+    start_game_from_lobby,
+    utc_now,
+)
 from .lobby_repository import (
     create_lobby,
     get_lobby_by_code,
@@ -30,6 +40,9 @@ from .lobby_repository import (
 from .models import Lobby
 from .schemas import (
     AuthResponse,
+    ActiveGameResponse,
+    GamePlayerResponse,
+    GameSessionResponse,
     LobbyCreateRequest,
     LobbyPlayerUpdateRequest,
     LobbyResponse,
@@ -117,6 +130,55 @@ def serialize_lobby_summary(lobby: Lobby) -> LobbySummaryResponse:
         is_public=lobby.is_public,
         status=lobby.status,
         created_at=lobby.created_at,
+    )
+
+
+def serialize_game(game, user: UserResponse) -> GameSessionResponse:
+    now = utc_now()
+    players = []
+    for player in game.players:
+        deadline = disconnect_deadline(player)
+        seconds_remaining = None
+        if deadline and player.status == "disconnected":
+            seconds_remaining = max(0, int((deadline - now).total_seconds()))
+        players.append(
+            GamePlayerResponse(
+                user_id=player.user_id,
+                nickname=player.nickname,
+                team_color=player.team_color,
+                is_host=player.is_host,
+                card_count=player.card_count,
+                prisoners_total=player.prisoners_total,
+                escaped_prisoners=player.escaped_prisoners,
+                turn_order=player.turn_order,
+                status=player.status,
+                can_rejoin=player.can_rejoin,
+                disconnected_at=player.disconnected_at,
+                disconnect_deadline=deadline,
+                disconnect_seconds_remaining=seconds_remaining,
+            )
+        )
+
+    current_player = next(
+        (player for player in game.players if player.user_id == user.id),
+        None,
+    )
+
+    return GameSessionResponse(
+        id=game.id,
+        lobby_code=game.lobby.code,
+        lobby_name=game.lobby.name,
+        status=game.status,
+        path=game_path(game.id),
+        route_tiles=game.route_tiles,
+        players=players,
+        events=list(game.events),
+        current_user_id=user.id,
+        is_participant=current_player is not None
+        and current_player.status not in ("left", "removed")
+        and current_player.can_rejoin,
+        current_player_status=current_player.status if current_player else "none",
+        created_at=game.created_at,
     )
 
 
@@ -380,6 +442,109 @@ async def kick_lobby_player_endpoint(
 
     await db.commit()
     return serialize_lobby(lobby, user)
+
+
+@app.post("/lobbies/{lobby_code}/start-game", response_model=GameSessionResponse)
+async def start_lobby_game_endpoint(
+    lobby_code: str,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GameSessionResponse:
+    lobby = await get_lobby_by_code(db, lobby_code)
+    if not lobby or lobby.status not in ("waiting", "in_game"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    try:
+        game = await start_game_from_lobby(db, lobby, user)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+    await db.commit()
+    return serialize_game(game, user)
+
+
+@app.get("/games/active", response_model=ActiveGameResponse)
+async def active_game_endpoint(
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ActiveGameResponse:
+    game = await get_active_game_for_user(db, user)
+    if not game:
+        return ActiveGameResponse(game=None)
+
+    await db.commit()
+    return ActiveGameResponse(game=serialize_game(game, user))
+
+
+@app.get("/games/{game_id}", response_model=GameSessionResponse)
+async def game_details_endpoint(
+    game_id: uuid.UUID,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GameSessionResponse:
+    try:
+        game = await access_game(db, game_id, user, reconnect=True)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+
+    if not game:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_game(game, user)
+
+
+@app.post("/games/{game_id}/heartbeat", response_model=GameSessionResponse)
+async def game_heartbeat_endpoint(
+    game_id: uuid.UUID,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GameSessionResponse:
+    try:
+        game = await heartbeat_game_player(db, game_id, user)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+
+    if not game:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_game(game, user)
+
+
+@app.post("/games/{game_id}/leave", response_model=dict[str, str])
+async def leave_game_endpoint(
+    game_id: uuid.UUID,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    try:
+        game = await leave_game(db, game_id, user)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+
+    if not game:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return {"message": "Game left.", "next": user_page_path(user.id)}
 
 
 @app.post("/auth/logout")

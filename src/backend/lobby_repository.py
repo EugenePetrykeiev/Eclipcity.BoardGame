@@ -1,5 +1,3 @@
-import random
-import string
 import uuid
 
 from sqlalchemy import select
@@ -8,21 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from .models import Lobby, LobbyEvent, LobbyPlayer
 from .schemas import LobbyCreateRequest, LobbyPlayerUpdateRequest, UserResponse
-
-
-LOBBY_CODE_ALPHABET = string.ascii_uppercase + string.digits
-
-
-def normalize_lobby_code(code: str) -> str:
-    return code.strip().upper()
-
-
-def lobby_path(code: str) -> str:
-    return f"/lobby/{code}"
-
-
-def create_lobby_code() -> str:
-    return "".join(random.choice(LOBBY_CODE_ALPHABET) for _ in range(5))
+from .lobby_utils import create_lobby_code, lobby_path, normalize_lobby_code
 
 
 def player_nickname(user: UserResponse) -> str:

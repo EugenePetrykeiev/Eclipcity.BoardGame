@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import HomePage from "./pages/HomePage.jsx";
+import GamePage from "./pages/GamePage.jsx";
 import UserPage from "./pages/UserPage.jsx";
 import { getAuthSession } from "./services/authClient.js";
 
@@ -40,6 +41,10 @@ export default function App() {
     window.location.pathname.startsWith("/lobby/")
   ) {
     return <UserPage />;
+  }
+
+  if (window.location.pathname.startsWith("/game/")) {
+    return <GamePage />;
   }
 
   if (homeAuthCheck === "checking") {

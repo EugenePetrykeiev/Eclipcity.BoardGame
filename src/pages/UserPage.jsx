@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, Settings, Volume2, VolumeX, X } from "lucide-react";
 import {
   createLobby as createLobbyRequest,
+  getActiveGame,
   getCurrentUser,
   getLobbyDetails,
   getUserProfile,
@@ -9,9 +10,11 @@ import {
   kickLobbyPlayer,
   leaveLobbyByCode,
   listPublicLobbies,
+  startLobbyGame,
   updateLobbyPlayer
 } from "../services/authClient.js";
 import { useI18n } from "../i18n/I18nProvider.jsx";
+import { defaultLobbyName, validateLobbyName } from "../utils/lobbyName.js";
 import defaultUserAvatar from "../assets/default-user-avatar.svg";
 
 const userPathPattern =
@@ -28,8 +31,6 @@ const actions = [
   }
 ];
 
-const defaultLobbyName = "Untitled lobby";
-const allowedLobbySymbols = new Set([..." !@#$%^&*(),./|\\?`~"]);
 const teamOptions = [
   { id: "green", label: "Green", color: "#B6FF00" },
   { id: "purple", label: "Purple", color: "#7B2FFF" },
@@ -60,16 +61,6 @@ function routeContextFromPath() {
   }
 
   return { type: "invalid", userId: null, lobbyCode: null };
-}
-
-function isLetterOrDigit(character) {
-  return /^[A-Za-z0-9А-Яа-яІіЇїЄєҐґ]$/u.test(character);
-}
-
-function hasAllowedLobbyNameCharacters(value) {
-  return [...value].every(
-    (character) => isLetterOrDigit(character) || allowedLobbySymbols.has(character)
-  );
 }
 
 function ToastStack({ notifications, onDismiss, t }) {
@@ -138,6 +129,7 @@ export default function UserPage() {
   const [selectedLobbyCode, setSelectedLobbyCode] = useState("");
   const [lobbyCodeInput, setLobbyCodeInput] = useState("");
   const [confirmModal, setConfirmModal] = useState(null);
+  const [activeGame, setActiveGame] = useState(null);
   const timersRef = useRef(new Map());
 
   const routeContext = useMemo(() => routeContextFromPath(), []);
@@ -164,29 +156,11 @@ export default function UserPage() {
   }, [activePanel, gameScenario, t]);
   const normalizedLobbyName = lobbyForm.name.trim();
   const lobbyNameValidation = useMemo(() => {
-    if (!normalizedLobbyName) {
-      return { isValid: true, message: "" };
-    }
-
-    if (normalizedLobbyName.length < 3) {
-      return {
-        isValid: false,
-        message: t("lobby.nameMin")
-      };
-    }
-
-    if (normalizedLobbyName.length > 12) {
-      return { isValid: false, message: t("lobby.nameMax") };
-    }
-
-    if (!hasAllowedLobbyNameCharacters(normalizedLobbyName)) {
-      return {
-        isValid: false,
-        message: t("lobby.nameChars")
-      };
-    }
-
-    return { isValid: true, message: "" };
+    return validateLobbyName(normalizedLobbyName, {
+      min: t("lobby.nameMin"),
+      max: t("lobby.nameMax"),
+      chars: t("lobby.nameChars")
+    });
   }, [normalizedLobbyName, t]);
 
   useEffect(() => {
@@ -219,6 +193,16 @@ export default function UserPage() {
           setGameScenario("join-lobby");
         } else {
           setActivePanel("profile");
+          try {
+            const activeGamePayload = await getActiveGame();
+            if (isMounted) {
+              setActiveGame(activeGamePayload.game || null);
+            }
+          } catch {
+            if (isMounted) {
+              setActiveGame(null);
+            }
+          }
         }
 
         setStatus("ready");
@@ -272,7 +256,14 @@ export default function UserPage() {
           return { ...nextLobby, minimized: current.minimized };
         });
       } catch {
-        // Keep the visible lobby stable on transient polling failures.
+        try {
+          const activeGamePayload = await getActiveGame();
+          if (isPolling && activeGamePayload.game?.path) {
+            window.location.assign(activeGamePayload.game.path);
+          }
+        } catch {
+          // Keep the visible lobby stable on transient polling failures.
+        }
       }
     };
 
@@ -512,6 +503,19 @@ export default function UserPage() {
     }
   }
 
+  async function startCurrentLobbyGame() {
+    if (!lobby) {
+      return;
+    }
+
+    try {
+      const nextGame = await startLobbyGame(lobby.code);
+      window.location.assign(nextGame.path);
+    } catch (requestError) {
+      notify(requestError.message || t("gamePage.startError"));
+    }
+  }
+
   const renderStageContent = () => {
     if (status !== "ready") {
       return (
@@ -566,7 +570,7 @@ export default function UserPage() {
               <input
                 type="text"
                 value={lobbyForm.name}
-                maxLength={12}
+                maxLength={15}
                 placeholder={defaultLobbyName}
                 aria-invalid={!lobbyNameValidation.isValid}
                 onChange={(event) =>
@@ -793,7 +797,7 @@ export default function UserPage() {
             {lobby.is_host && (
               <button
                 type="button"
-                onClick={() => notify(t("lobby.startToast"))}
+                onClick={startCurrentLobbyGame}
               >
                 {t("lobby.start")}
               </button>
@@ -867,6 +871,41 @@ export default function UserPage() {
                 type="button"
                 className="secondary"
                 onClick={() => setConfirmModal(null)}
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeGame && activePanel === "profile" && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="active-game-title"
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label={t("common.close")}
+              onClick={() => setActiveGame(null)}
+            >
+              <X aria-hidden="true" size={18} strokeWidth={2} />
+            </button>
+            <p className="profile-kicker">{t("gamePage.reconnectKicker")}</p>
+            <h2 id="active-game-title">{t("gamePage.reconnectTitle")}</h2>
+            <p>{t("gamePage.reconnectText")}</p>
+            <div className="modal-actions">
+              <button type="button" onClick={() => window.location.assign(activeGame.path)}>
+                {t("gamePage.reconnect")}
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setActiveGame(null)}
               >
                 {t("common.cancel")}
               </button>

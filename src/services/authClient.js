@@ -178,3 +178,29 @@ export function kickLobbyPlayer(code, userId) {
     method: "DELETE"
   });
 }
+
+export function startLobbyGame(code) {
+  return lobbyRequest(`/lobbies/${code}/start-game`, {
+    method: "POST"
+  });
+}
+
+export function getActiveGame() {
+  return lobbyRequest("/games/active");
+}
+
+export function getGameDetails(gameId) {
+  return lobbyRequest(`/games/${gameId}`);
+}
+
+export function heartbeatGame(gameId) {
+  return lobbyRequest(`/games/${gameId}/heartbeat`, {
+    method: "POST"
+  });
+}
+
+export function leaveGameById(gameId) {
+  return lobbyRequest(`/games/${gameId}/leave`, {
+    method: "POST"
+  });
+}

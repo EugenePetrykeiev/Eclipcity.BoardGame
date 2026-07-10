@@ -5,6 +5,7 @@ import { I18nProvider } from "./i18n/I18nProvider.jsx";
 import "./styles/theme.css";
 import "./styles/home-page.css";
 import "./styles/user-page.css";
+import "./styles/game-page.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

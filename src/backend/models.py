@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -70,7 +70,7 @@ class Lobby(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     code: Mapped[str] = mapped_column(String(5), nullable=False)
-    name: Mapped[str] = mapped_column(String(12), nullable=False)
+    name: Mapped[str] = mapped_column(String(15), nullable=False)
     max_players: Mapped[int] = mapped_column(Integer, nullable=False)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="waiting")
@@ -95,6 +95,7 @@ class Lobby(Base):
         cascade="all, delete-orphan",
         order_by="LobbyEvent.created_at",
     )
+    game_sessions: Mapped[list["GameSession"]] = relationship(back_populates="lobby")
 
 
 class LobbyPlayer(Base):
@@ -137,3 +138,85 @@ class LobbyEvent(Base):
     )
 
     lobby: Mapped[Lobby] = relationship(back_populates="events")
+
+
+class GameSession(Base):
+    __tablename__ = "game_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    lobby_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lobbies.id", ondelete="CASCADE"), unique=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    route_tiles: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    lobby: Mapped[Lobby] = relationship(back_populates="game_sessions")
+    players: Mapped[list["GamePlayer"]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+        order_by="GamePlayer.turn_order",
+    )
+    events: Mapped[list["GameEvent"]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+        order_by="GameEvent.created_at",
+    )
+
+
+class GamePlayer(Base):
+    __tablename__ = "game_players"
+
+    game_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("game_sessions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    nickname: Mapped[str] = mapped_column(String(24), nullable=False)
+    team_color: Mapped[str] = mapped_column(String(16), nullable=False)
+    is_host: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    card_count: Mapped[int] = mapped_column(Integer, nullable=False, default=6)
+    prisoners_total: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
+    escaped_prisoners: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    turn_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="connected")
+    can_rejoin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    disconnected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    game: Mapped[GameSession] = relationship(back_populates="players")
+    user: Mapped[User] = relationship()
+
+
+class GameEvent(Base):
+    __tablename__ = "game_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    game_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("game_sessions.id", ondelete="CASCADE")
+    )
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    game: Mapped[GameSession] = relationship(back_populates="events")

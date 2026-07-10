@@ -101,7 +101,7 @@ Tables:
 lobbies
 - id UUID primary key
 - code varchar(5), unique
-- name varchar(12)
+- name varchar(15)
 - max_players integer
 - is_public boolean
 - status varchar(16): waiting, closed
@@ -148,7 +148,7 @@ Implemented behavior:
 5. The player chooses max players from `2` to `5`.
 6. The lobby can be public or private.
 7. The lobby name is optional. Empty value becomes `Untitled lobby`.
-8. Custom lobby names must be `3-12` characters and may contain letters, digits,
+8. Custom lobby names must be `3-15` characters and may contain letters, digits,
    spaces, and these symbols: `` !@#$%^&*(),./|\?`~ ``.
 9. The backend generates a unique 5-character lobby code.
 10. After creation, the host appears in the lobby table immediately.

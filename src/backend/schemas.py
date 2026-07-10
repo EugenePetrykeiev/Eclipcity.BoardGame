@@ -20,8 +20,8 @@ def normalize_lobby_name(value: str | None) -> str:
         return DEFAULT_LOBBY_NAME
     if len(name) < 3:
         raise ValueError("Lobby name must contain at least 3 characters.")
-    if len(name) > 12:
-        raise ValueError("Lobby name must contain at most 12 characters.")
+    if len(name) > 15:
+        raise ValueError("Lobby name must contain at most 15 characters.")
     if not all(is_lobby_name_character_allowed(character) for character in name):
         raise ValueError("Lobby name contains unsupported characters.")
     return name
@@ -57,7 +57,7 @@ class AuthResponse(BaseModel):
 
 
 class LobbyCreateRequest(BaseModel):
-    name: str | None = Field(default=None, max_length=12, validate_default=True)
+    name: str | None = Field(default=None, max_length=15, validate_default=True)
     max_players: int = Field(ge=2, le=5)
     is_public: bool = True
 
@@ -107,3 +107,54 @@ class LobbyResponse(LobbySummaryResponse):
     is_member: bool
     is_host: bool
     path: str
+
+
+class GameTileResponse(BaseModel):
+    index: int
+    item_id: str
+
+
+class GamePlayerResponse(BaseModel):
+    user_id: uuid.UUID
+    nickname: str
+    team_color: TeamColor
+    is_host: bool
+    card_count: int
+    prisoners_total: int
+    escaped_prisoners: int
+    turn_order: int
+    status: str
+    can_rejoin: bool
+    disconnected_at: datetime | None = None
+    disconnect_deadline: datetime | None = None
+    disconnect_seconds_remaining: int | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class GameEventResponse(BaseModel):
+    id: uuid.UUID
+    event_type: str
+    message: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class GameSessionResponse(BaseModel):
+    id: uuid.UUID
+    lobby_code: str
+    lobby_name: str
+    status: str
+    path: str
+    route_tiles: list[GameTileResponse]
+    players: list[GamePlayerResponse]
+    events: list[GameEventResponse]
+    current_user_id: uuid.UUID
+    is_participant: bool
+    current_player_status: str
+    created_at: datetime
+
+
+class ActiveGameResponse(BaseModel):
+    game: GameSessionResponse | None = None
