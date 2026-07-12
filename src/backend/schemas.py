@@ -112,6 +112,7 @@ class LobbyResponse(LobbySummaryResponse):
 class GameTileResponse(BaseModel):
     index: int
     item_id: str
+    shape_id: int = 0
 
 
 class GamePlayerResponse(BaseModel):
@@ -120,6 +121,7 @@ class GamePlayerResponse(BaseModel):
     team_color: TeamColor
     is_host: bool
     card_count: int
+    hand_cards: list[str] = []
     prisoners_total: int
     escaped_prisoners: int
     turn_order: int

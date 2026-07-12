@@ -27,6 +27,7 @@ from .game_repository import (
     start_game_from_lobby,
     utc_now,
 )
+from .game_rules import generate_player_hands
 from .lobby_repository import (
     create_lobby,
     get_lobby_by_code,
@@ -136,6 +137,12 @@ def serialize_lobby_summary(lobby: Lobby) -> LobbySummaryResponse:
 def serialize_game(game, user: UserResponse) -> GameSessionResponse:
     now = utc_now()
     players = []
+    player_ids = [str(player.user_id) for player in game.players]
+    hands = generate_player_hands(
+        str(game.id),
+        player_ids,
+        {str(player.user_id): player.card_count for player in game.players},
+    )
     for player in game.players:
         deadline = disconnect_deadline(player)
         seconds_remaining = None
@@ -148,6 +155,7 @@ def serialize_game(game, user: UserResponse) -> GameSessionResponse:
                 team_color=player.team_color,
                 is_host=player.is_host,
                 card_count=player.card_count,
+                hand_cards=hands.get(str(player.user_id), []),
                 prisoners_total=player.prisoners_total,
                 escaped_prisoners=player.escaped_prisoners,
                 turn_order=player.turn_order,

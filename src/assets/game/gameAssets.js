@@ -1,5 +1,7 @@
 export const cardBackImage = new URL("./cards/card-back.png", import.meta.url)
   .href;
+export const prisonerPawnImage = new URL("./prisoner-pawn.svg", import.meta.url)
+  .href;
 
 export const gameItems = [
   {

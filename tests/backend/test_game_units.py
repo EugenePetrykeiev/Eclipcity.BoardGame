@@ -13,6 +13,8 @@ from src.backend.game_rules import (
     DECK_COPIES_PER_ITEM,
     GAME_ITEM_IDS,
     GAME_ROUTE_TILE_COUNT,
+    GAME_ROUTE_SHAPE_COUNT,
+    generate_player_hands,
     generate_route_tiles,
     is_valid_route_item_order,
     repeated_pair_count,
@@ -37,6 +39,26 @@ class GameRouteRulesTest(unittest.TestCase):
 
         self.assertTrue(is_valid_route_item_order(item_ids))
         self.assertLessEqual(repeated_pair_count(item_ids), 1)
+
+    def test_generated_route_carries_one_of_ten_shape_ids(self):
+        tiles = generate_route_tiles(shape_id=9)
+        shape_ids = {tile["shape_id"] for tile in tiles}
+
+        self.assertEqual(shape_ids, {9})
+        self.assertEqual(GAME_ROUTE_SHAPE_COUNT, 10)
+        self.assertEqual(generate_route_tiles(shape_id=10)[0]["shape_id"], 0)
+
+    def test_player_hands_are_dealt_from_one_shuffled_deck(self):
+        player_ids = ["player-one", "player-two", "player-three"]
+        hands = generate_player_hands(
+            "game-id",
+            player_ids,
+            {player_id: 6 for player_id in player_ids},
+        )
+
+        self.assertEqual(set(hands.keys()), set(player_ids))
+        self.assertTrue(all(len(hand) == 6 for hand in hands.values()))
+        self.assertNotEqual(hands["player-one"], hands["player-two"])
 
 
 class GameSessionUtilsTest(unittest.TestCase):
