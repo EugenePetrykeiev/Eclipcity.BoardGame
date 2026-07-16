@@ -13,6 +13,27 @@ npm run dev
 
 Then open the local URL printed by Vite.
 
+## Local Full Service
+
+Run frontend and backend together:
+
+```bash
+npm run dev:services
+```
+
+Short alias:
+
+```bash
+npm run service
+```
+
+This starts:
+
+1. Backend: `http://127.0.0.1:8000/docs`
+2. Frontend: `http://127.0.0.1:5173/`
+
+Stop both services with `Ctrl+C`.
+
 For a production build and home-page smoke test:
 
 ```bash

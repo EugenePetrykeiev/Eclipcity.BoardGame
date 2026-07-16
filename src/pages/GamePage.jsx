@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { LogOut } from "lucide-react";
 import {
+  endGameTurn,
   getGameDetails,
   heartbeatGame,
-  leaveGameById
+  leaveGameById,
+  moveGamePrisonerBack,
+  playGameCard
 } from "../services/authClient.js";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import {
@@ -192,12 +195,6 @@ function startApproachArrow(startPoint) {
   };
 }
 
-function getCurrentTurnPlayer(players) {
-  return [...players]
-    .filter((player) => player.status !== "removed" && player.status !== "left")
-    .sort((a, b) => a.turn_order - b.turn_order)[0];
-}
-
 function hashString(value) {
   return [...value].reduce(
     (hash, char) => (hash * 31 + char.charCodeAt(0)) % 9973,
@@ -272,7 +269,13 @@ function PrisonerProgress({ player }) {
   );
 }
 
-function PlayerCardBacks({ count, compact = false, cards = [] }) {
+function PlayerCardBacks({
+  count,
+  compact = false,
+  cards = [],
+  disabled = false,
+  onCardClick = null
+}) {
   const visibleCards = Math.min(count, 6);
   const openCards = cards.slice(0, visibleCards);
 
@@ -283,17 +286,21 @@ function PlayerCardBacks({ count, compact = false, cards = [] }) {
           (() => {
             const offset = index - (openCards.length - 1) / 2;
             return (
-              <img
+              <button
+                type="button"
                 key={`${item.id}-${index}`}
-                src={item.cardImage}
-                alt={item.nameUk}
+                className="hand-card-button"
+                disabled={disabled}
+                onClick={() => onCardClick?.(item)}
                 title={item.nameUk}
                 style={{
                   "--card-angle": `${offset * 8}deg`,
                   "--card-arc": `${Math.abs(offset) * 5}px`,
                   zIndex: index + 1
                 }}
-              />
+              >
+                <img src={item.cardImage} alt={item.nameUk} />
+              </button>
             );
           })()
         ))}
@@ -322,7 +329,9 @@ function PlayerSeat({
   isCurrent,
   handCards = [],
   isSelf = false,
-  style = {}
+  style = {},
+  canAct = false,
+  onCardClick = null
 }) {
   const teamColor = teamColors[player.team_color];
   return (
@@ -332,13 +341,7 @@ function PlayerSeat({
       }`.trim()}
       style={style}
     >
-      {isSelf ? (
-        isCurrent && (
-          <div className="self-turn-row">
-            <i className="turn-pulse" aria-label="current turn" />
-          </div>
-        )
-      ) : (
+      {!isSelf && (
         <div className="seat-name-row">
           <PawnSilhouette teamColor={teamColor} title={player.nickname} />
           <span>{player.nickname}</span>
@@ -349,9 +352,43 @@ function PlayerSeat({
         count={player.card_count}
         compact={handCards.length === 0}
         cards={handCards}
+        disabled={isSelf && !canAct}
+        onCardClick={isSelf ? onCardClick : null}
       />
     </article>
   );
+}
+
+function gameActionMessage(message) {
+  if (!message) {
+    return "Хід неможливий.";
+  }
+
+  if (
+    message.includes("There is no occupied tile") ||
+    message.includes("nearest occupied tile") ||
+    message.includes("only to the nearest occupied")
+  ) {
+    return "Хід неможливий: місце зайняте або недоступне.";
+  }
+
+  if (message.includes("Selected card")) {
+    return "Цієї карти немає в руці.";
+  }
+
+  if (message.includes("Selected prisoner")) {
+    return "Спочатку оберіть свого в'язня.";
+  }
+
+  if (message.includes("not this player's turn")) {
+    return "Зараз хід іншого гравця.";
+  }
+
+  if (message.includes("No actions left")) {
+    return "Дії на цей хід уже використані.";
+  }
+
+  return message;
 }
 
 export default function GamePage() {
@@ -359,8 +396,13 @@ export default function GamePage() {
   const [game, setGame] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
+  const [actionNotice, setActionNotice] = useState(null);
   const [selectedPrisoner, setSelectedPrisoner] = useState(null);
+  const [playedCard, setPlayedCard] = useState(null);
+  const [movingPrisoner, setMovingPrisoner] = useState(null);
+  const [isActionPending, setIsActionPending] = useState(false);
   const [isRosterOpen, setIsRosterOpen] = useState(false);
+  const [acknowledgedResultKey, setAcknowledgedResultKey] = useState("");
   const gameId = useMemo(() => gameIdFromPath(), []);
   const itemMap = useMemo(
     () => new Map(gameItems.map((item) => [item.id, item])),
@@ -414,7 +456,10 @@ export default function GamePage() {
         }
       } catch (requestError) {
         if (isPolling) {
-          setError(requestError.message || t("gamePage.connectionLost"));
+          setActionNotice({
+            id: Date.now(),
+            message: gameActionMessage(requestError.message || t("gamePage.connectionLost"))
+          });
         }
       }
     };
@@ -425,6 +470,17 @@ export default function GamePage() {
       window.clearInterval(intervalId);
     };
   }, [gameId, status, t]);
+
+  useEffect(() => {
+    if (!actionNotice) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setActionNotice(null);
+    }, 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [actionNotice]);
 
   useEffect(() => {
     function toggleRosterByTab(event) {
@@ -449,8 +505,111 @@ export default function GamePage() {
       const result = await leaveGameById(game.id);
       window.location.assign(result.next || userHomePath(game.current_user_id));
     } catch (requestError) {
-      setError(requestError.message || t("gamePage.leaveError"));
+      if (game.current_user_id) {
+        window.location.assign(userHomePath(game.current_user_id));
+        return;
+      }
+      setActionNotice({
+        id: Date.now(),
+        message: gameActionMessage(requestError.message || t("gamePage.leaveError"))
+      });
     }
+  }
+
+  async function runGameAction(action, options = {}) {
+    if (isActionPending) {
+      return;
+    }
+
+    setIsActionPending(true);
+    try {
+      const previousGame = game;
+      const payload = await action();
+      const movement = options.prisonerId
+        ? buildMovementPath(previousGame, payload, options.prisonerId)
+        : null;
+      if (movement) {
+        setMovingPrisoner(movement);
+        window.setTimeout(() => {
+          setGame(payload);
+          setMovingPrisoner(null);
+        }, 680);
+      } else {
+        setGame(payload);
+      }
+      setSelectedPrisoner(null);
+    } catch (requestError) {
+      setActionNotice({
+        id: Date.now(),
+        message: gameActionMessage(requestError.message || "Game action failed.")
+      });
+    } finally {
+      setIsActionPending(false);
+    }
+  }
+
+  async function handleCardClick(item) {
+    if (!game || !selectedPrisoner || !canUseActions) {
+      setActionNotice({
+        id: Date.now(),
+        message: "Оберіть в'язня перед картою."
+      });
+      return;
+    }
+
+    setPlayedCard(item);
+    window.setTimeout(() => setPlayedCard(null), 760);
+    await runGameAction(() =>
+      playGameCard(game.id, {
+        prisoner_id: selectedPrisoner,
+        card_id: item.id
+      }),
+      { prisonerId: selectedPrisoner }
+    );
+  }
+
+  async function handleTileClick(tileIndex) {
+    if (!game || !selectedPrisoner || !canUseActions) {
+      return;
+    }
+
+    await runGameAction(() =>
+      moveGamePrisonerBack(game.id, {
+        prisoner_id: selectedPrisoner,
+        target_tile_index: tileIndex
+      }),
+      { prisonerId: selectedPrisoner }
+    );
+  }
+
+  async function handleStartReturn() {
+    if (!game || !selectedPrisoner || !canUseActions) {
+      return;
+    }
+
+    await runGameAction(() =>
+      moveGamePrisonerBack(game.id, {
+        prisoner_id: selectedPrisoner,
+        target_tile_index: 0
+      }),
+      { prisonerId: selectedPrisoner }
+    );
+  }
+
+  async function handleEndTurn() {
+    if (!game || !canUseActions) {
+      return;
+    }
+
+    await runGameAction(() => endGameTurn(game.id));
+  }
+
+  function continueAsObserver() {
+    if (!resultModalKey) {
+      return;
+    }
+    window.sessionStorage.setItem(resultModalKey, "acknowledged");
+    setAcknowledgedResultKey(resultModalKey);
   }
 
   if (status === "loading") {
@@ -483,7 +642,55 @@ export default function GamePage() {
   const opponents = game.players.filter(
     (player) => player.user_id !== game.current_user_id
   );
-  const currentTurnPlayer = getCurrentTurnPlayer(game.players);
+  const currentTurnPlayer = game.players.find(
+    (player) => player.user_id === game.current_turn_user_id
+  );
+  const finishedPlayers = game.players
+    .filter((player) => player.finish_order)
+    .sort((first, second) => first.finish_order - second.finish_order);
+  const firstFinisher = finishedPlayers[0] || null;
+  const resultModalKey = me?.finish_order
+    ? `eclipcity:${game.id}:finished:${me.finish_order}`
+    : firstFinisher
+      ? `eclipcity:${game.id}:first-finish:${firstFinisher.user_id}`
+      : "";
+  const isResultAcknowledged = Boolean(resultModalKey)
+    && (acknowledgedResultKey === resultModalKey
+      || window.sessionStorage.getItem(resultModalKey) === "acknowledged");
+  const shouldShowResultModal = Boolean(resultModalKey) && !isResultAcknowledged;
+  const isMyTurn =
+    game.status === "active" &&
+    game.current_turn_user_id === game.current_user_id &&
+    me?.status !== "finished";
+  const canUseActions =
+    game.status === "active" && isMyTurn && !isActionPending && !shouldShowResultModal;
+  const actionsTaken = game.actions_taken ?? 0;
+  const actionsPerTurn = game.actions_per_turn ?? 3;
+  const startPrisonerByPlayer = new Map();
+  const startCountByPlayer = new Map();
+  const prisonersByTile = new Map();
+  const rescuedPlayers = game.players.filter((player) => player.escaped_prisoners > 0);
+  const winningPlayers = finishedPlayers.filter((player) => player.finish_order === 1);
+  const resultKind = me?.finish_order === 1
+    ? "victory"
+    : me?.finish_order
+      ? "finished"
+      : firstFinisher
+        ? "loss"
+        : "";
+  for (const prisoner of game.prisoners || []) {
+    if (prisoner.position === "start") {
+      const ownerId = String(prisoner.owner_user_id);
+      startCountByPlayer.set(ownerId, (startCountByPlayer.get(ownerId) || 0) + 1);
+      if (!startPrisonerByPlayer.has(ownerId)) {
+        startPrisonerByPlayer.set(ownerId, prisoner);
+      }
+    } else if (Number.isInteger(prisoner.position)) {
+      const prisoners = prisonersByTile.get(prisoner.position) || [];
+      prisoners.push(prisoner);
+      prisonersByTile.set(prisoner.position, prisoners);
+    }
+  }
   const visibleMyHandCards = (me?.hand_cards || [])
     .map((itemId) => itemMap.get(itemId))
     .filter(Boolean);
@@ -492,6 +699,62 @@ export default function GamePage() {
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
   const startArrow = startApproachArrow(startPoint);
+
+  function pointForPosition(position) {
+    if (position === "start") {
+      return startPoint;
+    }
+    if (position === "exit") {
+      return exitTilePoint;
+    }
+    return boardPoints[position - 1];
+  }
+
+  function routePointsBetween(fromPosition, toPosition) {
+    if (fromPosition === "start" && Number.isInteger(toPosition)) {
+      return boardPoints.slice(0, toPosition);
+    }
+    if (Number.isInteger(fromPosition) && toPosition === "exit") {
+      return [...boardPoints.slice(fromPosition - 1), exitTilePoint];
+    }
+    if (Number.isInteger(fromPosition) && Number.isInteger(toPosition)) {
+      const min = Math.min(fromPosition, toPosition);
+      const max = Math.max(fromPosition, toPosition);
+      const points = boardPoints.slice(min - 1, max);
+      return fromPosition > toPosition ? points.reverse() : points;
+    }
+    const fromPoint = pointForPosition(fromPosition);
+    const toPoint = pointForPosition(toPosition);
+    return fromPoint && toPoint ? [fromPoint, toPoint] : [];
+  }
+
+  function buildMovementPath(previousGame, nextGame, prisonerId) {
+    const previousPrisoner = previousGame?.prisoners?.find(
+      (prisoner) => prisoner.id === prisonerId
+    );
+    const nextPrisoner = nextGame?.prisoners?.find(
+      (prisoner) => prisoner.id === prisonerId
+    );
+    const owner = previousGame?.players?.find(
+      (player) => player.user_id === previousPrisoner?.owner_user_id
+    );
+    if (!previousPrisoner || !nextPrisoner || !owner) {
+      return null;
+    }
+
+    const points = routePointsBetween(previousPrisoner.position, nextPrisoner.position)
+      .filter(Boolean);
+    if (points.length < 2) {
+      return null;
+    }
+
+    return {
+      path: points
+        .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+        .join(" "),
+      teamColor: teamColors[owner.team_color]
+    };
+  }
 
   return (
     <main className="game-page" aria-label={t("gamePage.label")}>
@@ -504,7 +767,18 @@ export default function GamePage() {
         </div>
       </header>
 
-      {error && <p className="game-inline-error">{error}</p>}
+      {actionNotice && (
+        <aside className="game-action-toast" role="status" aria-live="polite">
+          <p>{actionNotice.message}</p>
+          <button
+            type="button"
+            aria-label="Закрити повідомлення"
+            onClick={() => setActionNotice(null)}
+          >
+            ×
+          </button>
+        </aside>
+      )}
 
       <section className="game-layout">
         <aside
@@ -536,6 +810,9 @@ export default function GamePage() {
                       <strong>{player.nickname}</strong>
                       {player.user_id === game.current_user_id && (
                         <em>{t("gamePage.me")}</em>
+                      )}
+                      {player.finish_order && (
+                        <b className="finish-order-badge">#{player.finish_order}</b>
                       )}
                       {isCurrent && <i className="turn-pulse" />}
                     </div>
@@ -572,7 +849,24 @@ export default function GamePage() {
               isCurrent={currentTurnPlayer?.user_id === me.user_id}
               handCards={visibleMyHandCards}
               isSelf
+              canAct={canUseActions && Boolean(selectedPrisoner)}
+              onCardClick={handleCardClick}
             />
+          )}
+          {isMyTurn && (
+            <aside className="turn-controls" aria-label="Turn controls">
+              <div className="turn-counter">
+                <i className="turn-pulse" />
+                <strong>{actionsTaken}/{actionsPerTurn}</strong>
+              </div>
+              <button
+                type="button"
+                onClick={handleEndTurn}
+                disabled={!canUseActions}
+              >
+                Завершити хід
+              </button>
+            </aside>
           )}
           <div className="game-table-perspective">
             <div className="game-table">
@@ -592,10 +886,30 @@ export default function GamePage() {
                   <polygon points={startArrow.head} />
                 </g>
                 <polyline points={tunnelPathPoints} />
+                {movingPrisoner && (
+                  <circle
+                    className="moving-prisoner-dot"
+                    r="1.55"
+                    fill={movingPrisoner.teamColor}
+                  >
+                    <animateMotion
+                      dur="650ms"
+                      fill="freeze"
+                      path={movingPrisoner.path}
+                    />
+                  </circle>
+                )}
               </svg>
 
               <div className="start-hatch">
                 <span>{t("gamePage.start")}</span>
+                <button
+                  type="button"
+                  className="start-return-button"
+                  aria-label={t("gamePage.returnStart")}
+                  disabled={!canUseActions || !selectedPrisoner}
+                  onClick={handleStartReturn}
+                />
                 <div className="start-prisoners" aria-label={t("gamePage.startPrisoners")}>
                   {game.players
                     .filter((player) => player.status !== "removed")
@@ -611,18 +925,25 @@ export default function GamePage() {
                         visiblePlayers.length
                       );
                       const id = `${player.user_id}-leader`;
-                      const prisonersLeft = Math.max(
-                        0,
-                        (player.prisoners_total || 7) - (player.escaped_prisoners || 0)
-                      );
+                      const playerId = String(player.user_id);
+                      const startPrisoner = startPrisonerByPlayer.get(playerId);
+                      const prisonersLeft = startCountByPlayer.get(playerId) || 0;
+                      if (!startPrisoner || prisonersLeft === 0) {
+                        return null;
+                      }
+                      const canSelect =
+                        canUseActions &&
+                        player.user_id === game.current_user_id &&
+                        !isActionPending;
 
                       return (
                         <button
                           type="button"
                           key={id}
                           className={`prisoner-token ${
-                            selectedPrisoner === id ? "selected" : ""
+                            selectedPrisoner === startPrisoner.id ? "selected" : ""
                           }`}
+                          disabled={!canSelect}
                           style={{
                             "--team-color": teamColors[player.team_color],
                             "--pawn-mask": `url("${prisonerPawnImage}")`,
@@ -631,8 +952,8 @@ export default function GamePage() {
                             zIndex: 20 + playerIndex
                           }}
                           title={`${player.nickname}: ${prisonersLeft}`}
-                          aria-pressed={selectedPrisoner === id}
-                          onClick={() => setSelectedPrisoner(id)}
+                          aria-pressed={selectedPrisoner === startPrisoner.id}
+                          onClick={() => setSelectedPrisoner(startPrisoner.id)}
                         >
                           <span className="prisoner-token-shape" aria-hidden="true" />
                           <span className="prisoner-count-badge">{prisonersLeft}</span>
@@ -654,28 +975,144 @@ export default function GamePage() {
                 style={{ left: `${exitTilePoint.x}%`, top: `${exitTilePoint.y}%` }}
               >
                 <span>{t("gamePage.exit")}</span>
+                <div className="exit-rescued-stack" aria-label={t("gamePage.rescuedPrisoners")}>
+                  {rescuedPlayers.map((player, index) => (
+                    <span
+                      key={player.user_id}
+                      className="exit-rescued-token"
+                      style={{
+                        "--team-color": teamColors[player.team_color],
+                        "--pawn-mask": `url("${prisonerPawnImage}")`,
+                        "--rescued-index": index
+                      }}
+                      title={`${player.nickname}: ${player.escaped_prisoners}`}
+                    >
+                      <span className="prisoner-token-shape" aria-hidden="true" />
+                      <strong>{player.escaped_prisoners}</strong>
+                    </span>
+                  ))}
+                </div>
               </div>
 
               {game.route_tiles.map((tile, index) => {
                 const point = boardPoints[index];
                 const item = itemMap.get(tile.item_id);
+                const tilePrisoners = prisonersByTile.get(tile.index) || [];
+                const hasOccupants = tilePrisoners.length > 0;
                 return (
                   <button
                     type="button"
                     key={`${tile.index}-${tile.item_id}`}
-                    className="tunnel-tile"
+                    className={`tunnel-tile ${hasOccupants ? "occupied" : ""}`}
                     style={{ left: `${point.x}%`, top: `${point.y}%` }}
                     title={item?.nameUk || tile.item_id}
+                    onClick={() => handleTileClick(tile.index)}
+                    disabled={!canUseActions || !selectedPrisoner}
                   >
                     <span className="tile-index">{tile.index}</span>
                     {item && <img src={item.itemImage} alt="" />}
                   </button>
                 );
               })}
+              {[...(game.prisoners || [])]
+                .filter((prisoner) => Number.isInteger(prisoner.position))
+                .map((prisoner) => {
+                  const point = boardPoints[prisoner.position - 1];
+                  const owner = game.players.find(
+                    (player) => player.user_id === prisoner.owner_user_id
+                  );
+                  if (!point || !owner) {
+                    return null;
+                  }
+                  const tilePrisoners = prisonersByTile.get(prisoner.position) || [];
+                  const stackIndex = tilePrisoners.findIndex((item) => item.id === prisoner.id);
+                  const canSelect =
+                    canUseActions &&
+                    prisoner.owner_user_id === game.current_user_id &&
+                    !isActionPending;
+
+                  return (
+                    <button
+                      type="button"
+                      key={prisoner.id}
+                      className={`prisoner-token board-prisoner ${
+                        selectedPrisoner === prisoner.id ? "selected" : ""
+                      }`}
+                      disabled={!canSelect}
+                      style={{
+                        "--team-color": teamColors[owner.team_color],
+                        "--pawn-mask": `url("${prisonerPawnImage}")`,
+                        left: `calc(${point.x}% + ${(stackIndex - 1) * 10}px)`,
+                        top: `calc(${point.y}% + ${stackIndex * 2}px)`,
+                        zIndex: 40 + stackIndex
+                      }}
+                      title={`${owner.nickname}: prisoner ${prisoner.index}`}
+                      aria-pressed={selectedPrisoner === prisoner.id}
+                      onClick={() => setSelectedPrisoner(prisoner.id)}
+                    >
+                      <span className="prisoner-token-shape" aria-hidden="true" />
+                    </button>
+                  );
+                })}
             </div>
           </div>
         </section>
       </section>
+      {playedCard && (
+        <div className="played-card-overlay" aria-hidden="true">
+          <img src={playedCard.cardImage} alt="" />
+        </div>
+      )}
+      {winningPlayers.length > 0 && (
+        <aside className="game-victory-banner" aria-live="polite">
+          <p>{t("gamePage.victoryKicker")}</p>
+          <strong>
+            {t("gamePage.victoryText", {
+              nickname: winningPlayers.map((player) => player.nickname).join(", ")
+            })}
+          </strong>
+        </aside>
+      )}
+      {shouldShowResultModal && (
+        <div className="game-result-backdrop" role="presentation">
+          <section
+            className={`game-result-modal ${resultKind}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="game-result-title"
+          >
+            <p className="profile-kicker">
+              {resultKind === "victory"
+                ? t("gamePage.resultVictoryKicker")
+                : t("gamePage.resultLossKicker")}
+            </p>
+            <h2 id="game-result-title">
+              {resultKind === "victory"
+                ? t("gamePage.resultVictoryTitle")
+                : resultKind === "finished"
+                  ? t("gamePage.resultFinishedTitle", { order: me?.finish_order })
+                  : t("gamePage.resultLossTitle")}
+            </h2>
+            <p>
+              {resultKind === "victory"
+                ? t("gamePage.resultVictoryText")
+                : resultKind === "finished"
+                  ? t("gamePage.resultFinishedText")
+                  : t("gamePage.resultLossText", {
+                    nickname: firstFinisher?.nickname || ""
+                  })}
+            </p>
+            <div className="game-result-actions">
+              <button type="button" onClick={leaveCurrentGame}>
+                {t("gamePage.leave")}
+              </button>
+              <button type="button" className="secondary" onClick={continueAsObserver}>
+                {t("gamePage.continueGame")}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

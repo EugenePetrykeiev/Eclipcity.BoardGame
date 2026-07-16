@@ -14,20 +14,24 @@ from .auth_repository import (
     upsert_google_user,
 )
 from .config import Settings, get_settings
-from .database import create_tables, get_db
+from .database import create_tables, get_db, upgrade_existing_tables
 from .email_service import send_welcome_email
 from .google_oauth import authorization_url, exchange_google_code
 from .game_repository import (
     access_game,
     disconnect_deadline,
+    end_turn_action,
+    ensure_gameplay_state,
     game_path,
     get_active_game_for_user,
     heartbeat_game_player,
     leave_game,
+    move_prisoner_back_action,
+    play_card_action,
     start_game_from_lobby,
+    sync_player_counts,
     utc_now,
 )
-from .game_rules import generate_player_hands
 from .lobby_repository import (
     create_lobby,
     get_lobby_by_code,
@@ -43,6 +47,10 @@ from .schemas import (
     AuthResponse,
     ActiveGameResponse,
     GamePlayerResponse,
+    GamePlayCardRequest,
+    GameMoveBackRequest,
+    GamePrisonerResponse,
+    GameStartRequest,
     GameSessionResponse,
     LobbyCreateRequest,
     LobbyPlayerUpdateRequest,
@@ -76,6 +84,8 @@ app.add_middleware(
 async def on_startup() -> None:
     if settings.auto_create_tables:
         await create_tables()
+    else:
+        await upgrade_existing_tables()
 
 
 def set_session_cookie(response: Response, user_id) -> None:
@@ -136,14 +146,11 @@ def serialize_lobby_summary(lobby: Lobby) -> LobbySummaryResponse:
 
 def serialize_game(game, user: UserResponse) -> GameSessionResponse:
     now = utc_now()
+    ensure_gameplay_state(game)
+    sync_player_counts(game)
     players = []
-    player_ids = [str(player.user_id) for player in game.players]
-    hands = generate_player_hands(
-        str(game.id),
-        player_ids,
-        {str(player.user_id): player.card_count for player in game.players},
-    )
     for player in game.players:
+        player_id = str(player.user_id)
         deadline = disconnect_deadline(player)
         seconds_remaining = None
         if deadline and player.status == "disconnected":
@@ -155,9 +162,10 @@ def serialize_game(game, user: UserResponse) -> GameSessionResponse:
                 team_color=player.team_color,
                 is_host=player.is_host,
                 card_count=player.card_count,
-                hand_cards=hands.get(str(player.user_id), []),
+                hand_cards=game.hands.get(player_id, []),
                 prisoners_total=player.prisoners_total,
                 escaped_prisoners=player.escaped_prisoners,
+                finish_order=player.finish_order,
                 turn_order=player.turn_order,
                 status=player.status,
                 can_rejoin=player.can_rejoin,
@@ -167,8 +175,23 @@ def serialize_game(game, user: UserResponse) -> GameSessionResponse:
             )
         )
 
+    prisoners = [
+        GamePrisonerResponse(
+            id=prisoner["id"],
+            owner_user_id=uuid.UUID(str(prisoner["owner_user_id"])),
+            index=prisoner["index"],
+            position=prisoner["position"],
+        )
+        for player_prisoners in game.prisoner_positions.values()
+        for prisoner in player_prisoners
+    ]
+
     current_player = next(
         (player for player in game.players if player.user_id == user.id),
+        None,
+    )
+    current_turn_player = next(
+        (player for player in game.players if player.turn_order == game.current_turn_order),
         None,
     )
 
@@ -180,8 +203,12 @@ def serialize_game(game, user: UserResponse) -> GameSessionResponse:
         path=game_path(game.id),
         route_tiles=game.route_tiles,
         players=players,
+        prisoners=prisoners,
         events=list(game.events),
         current_user_id=user.id,
+        current_turn_user_id=current_turn_player.user_id if current_turn_player else None,
+        actions_taken=game.actions_taken,
+        actions_per_turn=game.actions_per_turn,
         is_participant=current_player is not None
         and current_player.status not in ("left", "removed")
         and current_player.can_rejoin,
@@ -455,6 +482,7 @@ async def kick_lobby_player_endpoint(
 @app.post("/lobbies/{lobby_code}/start-game", response_model=GameSessionResponse)
 async def start_lobby_game_endpoint(
     lobby_code: str,
+    payload: GameStartRequest | None = None,
     user: UserResponse = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> GameSessionResponse:
@@ -463,7 +491,12 @@ async def start_lobby_game_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     try:
-        game = await start_game_from_lobby(db, lobby, user)
+        game = await start_game_from_lobby(
+            db,
+            lobby,
+            user,
+            route_tile_count=payload.route_tile_count if payload else 45,
+        )
     except PermissionError as error:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -524,6 +557,98 @@ async def game_heartbeat_endpoint(
     except PermissionError as error:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+
+    if not game:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_game(game, user)
+
+
+@app.post("/games/{game_id}/actions/play-card", response_model=GameSessionResponse)
+async def game_play_card_endpoint(
+    game_id: uuid.UUID,
+    payload: GamePlayCardRequest,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GameSessionResponse:
+    try:
+        game = await play_card_action(
+            db,
+            game_id,
+            user,
+            payload.prisoner_id,
+            payload.card_id,
+        )
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+    if not game:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_game(game, user)
+
+
+@app.post("/games/{game_id}/actions/move-back", response_model=GameSessionResponse)
+async def game_move_back_endpoint(
+    game_id: uuid.UUID,
+    payload: GameMoveBackRequest,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GameSessionResponse:
+    try:
+        game = await move_prisoner_back_action(
+            db,
+            game_id,
+            user,
+            payload.prisoner_id,
+            payload.target_tile_index,
+        )
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+    if not game:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await db.commit()
+    return serialize_game(game, user)
+
+
+@app.post("/games/{game_id}/actions/end-turn", response_model=GameSessionResponse)
+async def game_end_turn_endpoint(
+    game_id: uuid.UUID,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GameSessionResponse:
+    try:
+        game = await end_turn_action(db, game_id, user)
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(error),
         ) from error
 

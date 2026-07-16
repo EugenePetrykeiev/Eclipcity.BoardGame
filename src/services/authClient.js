@@ -179,9 +179,10 @@ export function kickLobbyPlayer(code, userId) {
   });
 }
 
-export function startLobbyGame(code) {
+export function startLobbyGame(code, values = {}) {
   return lobbyRequest(`/lobbies/${code}/start-game`, {
-    method: "POST"
+    method: "POST",
+    body: JSON.stringify(values)
   });
 }
 
@@ -201,6 +202,26 @@ export function heartbeatGame(gameId) {
 
 export function leaveGameById(gameId) {
   return lobbyRequest(`/games/${gameId}/leave`, {
+    method: "POST"
+  });
+}
+
+export function playGameCard(gameId, values) {
+  return lobbyRequest(`/games/${gameId}/actions/play-card`, {
+    method: "POST",
+    body: JSON.stringify(values)
+  });
+}
+
+export function moveGamePrisonerBack(gameId, values) {
+  return lobbyRequest(`/games/${gameId}/actions/move-back`, {
+    method: "POST",
+    body: JSON.stringify(values)
+  });
+}
+
+export function endGameTurn(gameId) {
+  return lobbyRequest(`/games/${gameId}/actions/end-turn`, {
     method: "POST"
   });
 }

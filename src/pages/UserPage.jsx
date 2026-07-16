@@ -122,6 +122,7 @@ export default function UserPage() {
     playerLimit: 5,
     isPublic: true
   });
+  const [gameTileCount, setGameTileCount] = useState(45);
   const [lobby, setLobby] = useState(null);
   const [gameScenario, setGameScenario] = useState(null);
   const [publicLobbies, setPublicLobbies] = useState([]);
@@ -509,7 +510,9 @@ export default function UserPage() {
     }
 
     try {
-      const nextGame = await startLobbyGame(lobby.code);
+      const nextGame = await startLobbyGame(lobby.code, {
+        route_tile_count: Number(gameTileCount)
+      });
       window.location.assign(nextGame.path);
     } catch (requestError) {
       notify(requestError.message || t("gamePage.startError"));
@@ -729,6 +732,11 @@ export default function UserPage() {
                     (team) => team.id === player.team_color
                   );
                   const canKickPlayer = lobby.is_host && player.user_id !== user?.id;
+                  const usedByOtherPlayer = new Set(
+                    lobby.players
+                      .filter((item) => item.user_id !== player.user_id)
+                      .map((item) => item.team_color)
+                  );
                   return (
                     <tr key={player.user_id}>
                       <td>{player.nickname}</td>
@@ -748,7 +756,11 @@ export default function UserPage() {
                             }
                           >
                             {teamOptions.map((team) => (
-                              <option key={team.id} value={team.id}>
+                              <option
+                                key={team.id}
+                                value={team.id}
+                                disabled={usedByOtherPlayer.has(team.id)}
+                              >
                                 {team.label}
                               </option>
                             ))}
@@ -792,6 +804,41 @@ export default function UserPage() {
             </ScrollPanel>
             <input type="text" disabled placeholder={t("lobby.chatPlaceholder")} />
           </div>
+
+          {lobby.is_host && (
+            <div className="game-route-options" aria-label={t("lobby.routeTileCount")}>
+              <label className="lobby-field">
+                <span>{t("lobby.routeTileCount")}</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={45}
+                  value={gameTileCount}
+                  onChange={(event) =>
+                    setGameTileCount(
+                      Math.min(45, Math.max(5, Number(event.target.value) || 5))
+                    )
+                  }
+                />
+              </label>
+              <div className="route-preset-buttons" aria-label={t("lobby.routePreset")}>
+                <button
+                  type="button"
+                  className={gameTileCount === 45 ? "active" : ""}
+                  onClick={() => setGameTileCount(45)}
+                >
+                  {t("lobby.routeStandard")}
+                </button>
+                <button
+                  type="button"
+                  className={gameTileCount === 5 ? "active" : ""}
+                  onClick={() => setGameTileCount(5)}
+                >
+                  {t("lobby.routeTest")}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="lobby-buttons">
             {lobby.is_host && (
@@ -983,11 +1030,11 @@ export default function UserPage() {
 
               <div className="profile-stats" aria-label={t("profile.stats")}>
                 <div>
-                  <strong>0</strong>
+                  <strong>{user.matches_played ?? 0}</strong>
                   <span>{t("profile.matchesPlayed")}</span>
                 </div>
                 <div>
-                  <strong>0</strong>
+                  <strong>{user.wins ?? 0}</strong>
                   <span>{t("profile.wins")}</span>
                 </div>
               </div>

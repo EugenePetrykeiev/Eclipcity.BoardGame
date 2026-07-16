@@ -662,6 +662,41 @@
   font: inherit;
 }
 
+.game-route-options {
+  display: grid;
+  max-width: 520px;
+  grid-template-columns: minmax(120px, 170px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid rgba(0, 245, 212, 0.22);
+  border-radius: 8px;
+  background: rgba(10, 14, 20, 0.46);
+}
+
+.route-preset-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.route-preset-buttons button {
+  min-height: 46px;
+  border: 1px solid rgba(123, 47, 255, 0.42);
+  border-radius: 6px;
+  background: rgba(123, 47, 255, 0.1);
+  color: var(--color-text-muted);
+  font-family: var(--font-hud);
+  font-weight: 800;
+}
+
+.route-preset-buttons button.active,
+.route-preset-buttons button:hover {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+  box-shadow: 0 0 14px rgba(182, 255, 0, 0.16);
+}
+
 .lobby-buttons,
 .modal-actions {
   display: flex;

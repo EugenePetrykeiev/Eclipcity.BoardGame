@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from .models import Lobby, LobbyEvent, LobbyPlayer
 from .schemas import LobbyCreateRequest, LobbyPlayerUpdateRequest, UserResponse
 from .lobby_utils import create_lobby_code, lobby_path, normalize_lobby_code
+from .game_rules import TEAM_COLORS
 
 
 def player_nickname(user: UserResponse) -> str:
@@ -15,6 +16,14 @@ def player_nickname(user: UserResponse) -> str:
 
 def add_lobby_event(lobby: Lobby, event_type: str, message: str) -> None:
     lobby.events.append(LobbyEvent(event_type=event_type, message=message))
+
+
+def available_team_color(lobby: Lobby) -> str:
+    used_colors = {player.team_color for player in lobby.players}
+    return next(
+        (team_color for team_color in TEAM_COLORS if team_color not in used_colors),
+        TEAM_COLORS[0],
+    )
 
 
 async def generate_unique_lobby_code(db: AsyncSession) -> str:
@@ -167,7 +176,7 @@ async def join_lobby(db: AsyncSession, code: str, user: UserResponse) -> Lobby |
         LobbyPlayer(
             user_id=user.id,
             nickname=nickname,
-            team_color="green",
+            team_color=available_team_color(lobby),
             is_host=False,
         )
     )
@@ -189,6 +198,12 @@ async def update_lobby_player(
     player = next((item for item in lobby.players if item.user_id == user.id), None)
     if not player:
         raise PermissionError("User is not in this lobby.")
+
+    if any(
+        item.user_id != user.id and item.team_color == payload.team_color
+        for item in lobby.players
+    ):
+        raise ValueError("This team color is already taken.")
 
     player.team_color = payload.team_color
     add_lobby_event(

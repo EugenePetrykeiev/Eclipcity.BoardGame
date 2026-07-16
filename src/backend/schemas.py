@@ -44,6 +44,8 @@ class UserResponse(BaseModel):
     email: EmailStr
     email_verified: bool
     avatar_url: str | None = None
+    matches_played: int = 0
+    wins: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -124,6 +126,7 @@ class GamePlayerResponse(BaseModel):
     hand_cards: list[str] = []
     prisoners_total: int
     escaped_prisoners: int
+    finish_order: int | None = None
     turn_order: int
     status: str
     can_rejoin: bool
@@ -132,6 +135,13 @@ class GamePlayerResponse(BaseModel):
     disconnect_seconds_remaining: int | None = None
 
     model_config = {"from_attributes": True}
+
+
+class GamePrisonerResponse(BaseModel):
+    id: str
+    owner_user_id: uuid.UUID
+    index: int
+    position: int | Literal["start", "exit"]
 
 
 class GameEventResponse(BaseModel):
@@ -151,12 +161,30 @@ class GameSessionResponse(BaseModel):
     path: str
     route_tiles: list[GameTileResponse]
     players: list[GamePlayerResponse]
+    prisoners: list[GamePrisonerResponse]
     events: list[GameEventResponse]
     current_user_id: uuid.UUID
+    current_turn_user_id: uuid.UUID | None = None
+    actions_taken: int
+    actions_per_turn: int
     is_participant: bool
     current_player_status: str
     created_at: datetime
 
 
+class GameStartRequest(BaseModel):
+    route_tile_count: int = Field(default=45, ge=5, le=45)
+
+
 class ActiveGameResponse(BaseModel):
     game: GameSessionResponse | None = None
+
+
+class GamePlayCardRequest(BaseModel):
+    prisoner_id: str
+    card_id: str
+
+
+class GameMoveBackRequest(BaseModel):
+    prisoner_id: str
+    target_tile_index: int = Field(ge=0)

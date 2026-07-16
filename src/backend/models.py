@@ -26,6 +26,8 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    matches_played: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    wins: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -151,6 +153,18 @@ class GameSession(Base):
     )
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     route_tiles: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+    hands: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    draw_pile: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    prisoner_positions: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    current_turn_order: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    actions_taken: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    actions_per_turn: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    close_scheduled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    stats_recorded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -190,6 +204,7 @@ class GamePlayer(Base):
     card_count: Mapped[int] = mapped_column(Integer, nullable=False, default=6)
     prisoners_total: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
     escaped_prisoners: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    finish_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
     turn_order: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="connected")
     can_rejoin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

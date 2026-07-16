@@ -4,7 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "npm run dev:frontend",
+    "dev:frontend": "vite --host 127.0.0.1 --port 5173",
+    "dev:backend": ".venv/bin/uvicorn src.backend.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:services": "node scripts/dev-services.mjs",
+    "service": "npm run dev:services",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "npm run test:frontend && npm run test:backend",
