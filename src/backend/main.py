@@ -3,7 +3,8 @@ import uuid
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth_repository import (
@@ -13,8 +14,8 @@ from .auth_repository import (
     get_user_by_id,
     upsert_google_user,
 )
-from .config import Settings, get_settings
-from .database import create_tables, get_db, upgrade_existing_tables
+from .config import get_settings
+from .database import get_db
 from .email_service import send_welcome_email
 from .google_oauth import authorization_url, exchange_google_code
 from .game_repository import (
@@ -78,14 +79,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    if settings.auto_create_tables:
-        await create_tables()
-    else:
-        await upgrade_existing_tables()
 
 
 def set_session_cookie(response: Response, user_id) -> None:
@@ -239,6 +232,19 @@ async def current_user(
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/ready")
+async def ready(db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+    try:
+        await db.execute(text("SELECT 1"))
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable.",
+        ) from error
+
+    return {"status": "ready"}
 
 
 @app.post("/auth/register", response_model=AuthResponse)

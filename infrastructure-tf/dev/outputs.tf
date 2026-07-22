@@ -53,29 +53,6 @@ output "database_private_hostname" {
   value       = module.dns.database_private_hostname
 }
 
-output "backend_private_hostname" {
-  description = "Stable private backend hostname used by frontend nginx."
-  value       = module.dns.backend_private_hostname
-}
-
-output "ecr_repository_urls" {
-  description = "ECR repositories used by automatic container delivery."
-  value       = module.cicd.repository_urls
-}
-
-output "github_actions_role_arns" {
-  description = "GitHub OIDC roles for image build and role-specific deployment."
-  value = merge(
-    { build = module.cicd.github_build_role_arn },
-    module.cicd.github_deploy_role_arns,
-  )
-}
-
-output "deployment_ssm_document_names" {
-  description = "SSM documents invoked by GitHub Actions."
-  value       = module.cicd.ssm_document_names
-}
-
 output "dns_records" {
   description = "Desired public DNS records reconciled by dev/dns/sync-records.sh through the adm.tools API."
   value       = module.dns.records

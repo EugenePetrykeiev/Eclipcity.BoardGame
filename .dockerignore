@@ -1,5 +1,7 @@
 .git
+infrastructure/dev-cicd
 .github
+main
 .gitignore
 .DS_Store
 .env
@@ -19,7 +21,7 @@ test-results
 **/*.tfstate
 **/*.tfstate.*
 t4g-terraform
-infrastructure-tf
+infrastructure/dev-cicd
 context
 docs
 ukr

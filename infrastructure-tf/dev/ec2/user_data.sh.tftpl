@@ -18,31 +18,7 @@ systemctl enable --now docker
 systemctl enable --now amazon-ssm-agent
 usermod -aG docker ec2-user
 
-compose_workdir="$(mktemp -d)"
-compose_asset="docker-compose-linux-aarch64"
-compose_base_url="https://github.com/docker/compose/releases/download/${compose_version}"
-trap 'rm -rf "$${compose_workdir}"' EXIT
-
-curl --fail --silent --show-error --location \
-  "$${compose_base_url}/$${compose_asset}" \
-  --output "$${compose_workdir}/$${compose_asset}"
-curl --fail --silent --show-error --location \
-  "$${compose_base_url}/$${compose_asset}.sha256" \
-  --output "$${compose_workdir}/$${compose_asset}.sha256"
-
-(
-  cd "$${compose_workdir}"
-  sha256sum --check "$${compose_asset}.sha256"
-)
-
-install -d -o root -g root -m 0755 /usr/local/lib/docker/cli-plugins
-install -o root -g root -m 0755 \
-  "$${compose_workdir}/$${compose_asset}" \
-  /usr/local/lib/docker/cli-plugins/docker-compose
-docker compose version
-
 install -d -o root -g root -m 0755 /opt/eclipcity
-install -d -o root -g root -m 0755 /opt/eclipcity/bin
 install -d -o root -g root -m 0700 /opt/eclipcity/env
 
 cat > /etc/eclipcity-node.conf <<'EOF'

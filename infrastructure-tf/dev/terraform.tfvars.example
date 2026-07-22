@@ -3,10 +3,6 @@ owner       = "platform"
 cost_center = "eclipcity"
 repository  = "Cartahena"
 
-# Set only after explicitly opting this repository into GitHub immutable OIDC
-# subjects. Keep null/default while GitHub uses the classic repository subject.
-# github_oidc_subject_override = "repo:OWNER@OWNER_ID/REPO@REPO_ID:environment:dev"
-
 # ARN is environment metadata; never paste the secret JSON itself.
 backend_secret_arn = "arn:aws:secretsmanager:eu-central-1:396287094980:secret:eclipcity/dev/backend-UCILpp"
 

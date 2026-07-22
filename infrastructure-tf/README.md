@@ -13,10 +13,6 @@ flowchart LR
   frontend -->|8000, private IP| backend[Backend EC2\npublic subnet, inbound denied]
   backend -->|outbound only| igw[Internet Gateway]
   igw --> aws[AWS APIs / OAuth / SES / ECR]
-  github[GitHub Actions OIDC] -->|push immutable images| ecr[ECR]
-  github -->|role-scoped command| ssm
-  ecr --> frontend
-  ecr --> backend
   backend -->|5432, VPC peering| db[Existing PostgreSQL\ndefault VPC]
   budget[AWS Budget] --> email[Cost alerts]
   ssm[AWS Systems Manager] --> frontend
@@ -39,11 +35,6 @@ flowchart LR
 - Private Route 53 hostname
   `postgres.internal.dev.eclipcity.digitee.space` приховує нестабільні EC2 IP від
   конфігурації застосунку.
-- Private Route 53 hostname
-  `backend.internal.dev.eclipcity.digitee.space` стабільно направляє nginx на
-  backend private IP.
-- GitHub Actions отримує короткоживучі AWS credentials через OIDC, збирає ARM64
-  images у ECR та запускає окремі backend/frontend SSM deployments без SSH.
 - Обидва application EC2 за замовчуванням `t4g.micro`. Root EBS volumes — `gp3`,
   зашифровані безплатним AWS-managed `alias/aws/ebs`; EC2 вимагають IMDSv2.
 - Увімкнені VPC Flow Logs з retention 30 днів.
@@ -66,7 +57,6 @@ infrastructure-tf/
 ├── dev/              # dev root module та environment-specific modules
 │   ├── dns/          # зовнішній DNS manifest і перевірка
 │   ├── budget/       # account-level monthly cost budget і email alerts
-│   ├── cicd/         # ECR, GitHub OIDC roles, SSM deployment documents
 │   ├── ec2/          # frontend/backend instances та Elastic IP
 │   ├── iam/          # SSM, ECR read-only, least-privilege secret access
 │   ├── network/      # security groups, DB peering і routes
@@ -272,22 +262,6 @@ terraform -chdir=infrastructure-tf/dev output -raw backend_ssm_command
 
 Виконайте виведену команду. SSH key pairs і inbound port 22 не потрібні.
 
-## 7. Автоматична доставка dev
-
-Перший Terraform apply створює ECR repositories, GitHub OIDC provider, окремі
-build/backend/frontend roles, SSM documents і pointers на instance IDs. Після
-цього push application changes у `main` автоматично:
-
-1. виконує frontend/backend tests;
-2. збирає ARM64 images і публікує immutable digest-и в ECR;
-3. запускає migration та backend deployment на backend EC2;
-4. лише після healthy backend оновлює frontend/nginx на frontend EC2;
-5. запускає public smoke checks.
-
-У GitHub потрібен Environment `dev` без required reviewers і з дозволом deploy
-лише з `main`. AWS keys у GitHub Secrets не потрібні. Повний runbook і rollback
-policy: `cicd/README.md`.
-
 ## Вартість і наступні кроки
 
 Основні постійні витрати dev після оптимізації: три EC2 разом із наявною БД,
@@ -296,5 +270,9 @@ Gateway і customer-managed EBS KMS key більше не потрібні. Budg
 контролює account-wide витрати, оскільки tag-based cost allocation може з'являтися
 із затримкою.
 
-До наступного етапу залишено Certbot bootstrap/renewal, alarms/backups та повна
-HA-схема для prod.
+До наступного етапу залишено:
+
+- ECR repositories і GitHub Actions/OIDC deployment roles;
+- deployment Compose для окремих frontend/backend hosts;
+- Certbot renewal runbook;
+- alarms/backups та повна HA-схема для prod.

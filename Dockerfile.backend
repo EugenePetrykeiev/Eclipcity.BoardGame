@@ -1,0 +1,24 @@
+FROM python:3.13-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN groupadd --system --gid 10001 eclipcity \
+    && useradd --system --uid 10001 --gid eclipcity --home-dir /app eclipcity
+
+COPY src/backend/requirements.txt ./src/backend/requirements.txt
+RUN python -m pip install --no-cache-dir -r src/backend/requirements.txt
+
+COPY --chown=eclipcity:eclipcity alembic.ini ./alembic.ini
+COPY --chown=eclipcity:eclipcity migrations ./migrations
+COPY --chown=eclipcity:eclipcity src/backend ./src/backend
+
+USER 10001:10001
+
+EXPOSE 8000
+
+CMD ["uvicorn", "src.backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips=*"]
