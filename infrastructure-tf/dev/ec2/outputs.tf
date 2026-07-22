@@ -17,3 +17,8 @@ output "backend_private_ip" {
   description = "Backend private IPv4 address."
   value       = aws_instance.backend.private_ip
 }
+
+output "backend_public_ip" {
+  description = "Ephemeral backend public IPv4 used only for outbound Internet access."
+  value       = aws_instance.backend.public_ip
+}

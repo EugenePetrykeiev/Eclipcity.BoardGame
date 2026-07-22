@@ -34,7 +34,7 @@ variable "frontend_subnet_id" {
 }
 
 variable "backend_subnet_id" {
-  description = "Private subnet for the backend node."
+  description = "Public subnet for the backend node; its security group still denies public ingress."
   type        = string
 }
 
@@ -55,11 +55,6 @@ variable "frontend_instance_profile" {
 
 variable "backend_instance_profile" {
   description = "Backend IAM instance profile name."
-  type        = string
-}
-
-variable "ebs_kms_key_arn" {
-  description = "KMS key ARN for root EBS encryption."
   type        = string
 }
 

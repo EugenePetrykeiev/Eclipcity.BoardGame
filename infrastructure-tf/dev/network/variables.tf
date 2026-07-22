@@ -13,8 +13,8 @@ variable "vpc_cidr" {
   type        = string
 }
 
-variable "private_route_table_id" {
-  description = "Dev private route table that receives the database VPC route."
+variable "backend_route_table_id" {
+  description = "Dev route table used by the backend subnet and receiving the database VPC route."
   type        = string
 }
 

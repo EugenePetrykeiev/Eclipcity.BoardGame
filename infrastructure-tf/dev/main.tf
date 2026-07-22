@@ -1,10 +1,3 @@
-module "kms" {
-  source = "./kms"
-
-  name_prefix = local.name_prefix
-  tags        = local.common_tags
-}
-
 module "vpc" {
   source = "./vpc"
 
@@ -13,6 +6,7 @@ module "vpc" {
   availability_zones      = local.availability_zones
   public_subnet_cidrs     = var.public_subnet_cidrs
   private_subnet_cidrs    = var.private_subnet_cidrs
+  enable_nat_gateway      = var.enable_nat_gateway
   enable_flow_logs        = var.enable_vpc_flow_logs
   flow_log_retention_days = var.vpc_flow_log_retention_days
   tags                    = local.common_tags
@@ -24,7 +18,7 @@ module "network" {
   name_prefix                = local.name_prefix
   vpc_id                     = module.vpc.vpc_id
   vpc_cidr                   = var.vpc_cidr
-  private_route_table_id     = module.vpc.private_route_table_id
+  backend_route_table_id     = module.vpc.public_route_table_id
   backend_port               = var.backend_port
   database_vpc_id            = data.aws_vpc.database.id
   database_vpc_cidr          = data.aws_vpc.database.cidr_block
@@ -53,18 +47,26 @@ module "ec2" {
   frontend_instance_type     = var.frontend_instance_type
   backend_instance_type      = var.backend_instance_type
   frontend_subnet_id         = module.vpc.public_subnet_ids[0]
-  backend_subnet_id          = module.vpc.private_subnet_ids[0]
+  backend_subnet_id          = module.vpc.public_subnet_ids[1]
   frontend_security_group_id = module.network.frontend_security_group_id
   backend_security_group_id  = module.network.backend_security_group_id
   frontend_instance_profile  = module.iam.frontend_instance_profile_name
   backend_instance_profile   = module.iam.backend_instance_profile_name
-  ebs_kms_key_arn            = module.kms.ebs_key_arn
   root_volume_size_gb        = var.root_volume_size_gb
   backend_secret_arn         = var.backend_secret_arn
   enable_detailed_monitoring = var.enable_detailed_monitoring
   tags                       = local.common_tags
 
-  depends_on = [module.vpc, module.network, module.iam, module.kms]
+  depends_on = [module.vpc, module.network, module.iam]
+}
+
+module "budget" {
+  source = "./budget"
+
+  name_prefix       = local.name_prefix
+  monthly_limit_usd = var.monthly_budget_limit_usd
+  alert_email       = var.budget_alert_email
+  tags              = local.common_tags
 }
 
 module "ses" {
