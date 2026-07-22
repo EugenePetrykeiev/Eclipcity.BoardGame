@@ -1,0 +1,42 @@
+name: eclipcity-backend
+
+x-backend-common: &backend-common
+  image: ${BACKEND_IMAGE:?BACKEND_IMAGE must be an immutable ECR digest}
+  env_file:
+    - /run/eclipcity/backend.env
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - backend
+
+services:
+  migration:
+    <<: *backend-common
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  backend:
+    <<: *backend-common
+    init: true
+    ports:
+      - "${BACKEND_BIND_IP:?BACKEND_BIND_IP is required}:8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+networks:
+  backend:
+    driver: bridge

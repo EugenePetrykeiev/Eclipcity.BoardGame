@@ -1,0 +1,5 @@
+bucket       = "eclipcity-terraform-state-REPLACE_ACCOUNT_ID-eu-central-1"
+key          = "eclipcity/dev/terraform.tfstate"
+region       = "eu-central-1"
+encrypt      = true
+use_lockfile = true
