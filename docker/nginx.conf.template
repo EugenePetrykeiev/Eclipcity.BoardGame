@@ -1,6 +1,7 @@
 map "$scheme:$uri" $redirect_to_https {
     default 0;
     ~^http:/\.well-known/acme-challenge/ 0;
+    ~^http:/healthz$ 0;
     ~^http:/ 1;
 }
 
@@ -33,6 +34,10 @@ server {
         root /var/www/certbot;
         default_type text/plain;
         try_files $uri =404;
+    }
+
+    location ~ /\. {
+        return 404;
     }
 
     location /api/ {
