@@ -72,7 +72,7 @@ BACKEND_PUBLIC_URL=http://localhost/api
 local Compose publishes host port `80` to the unprivileged container port `8080`.
 The Nginx container is independent from the frontend image.
 
-For the future AWS frontend EC2, the same template supports HTTPS by setting:
+On the AWS frontend EC2, the deployment TLS override sets:
 
 ```yaml
 environment:
@@ -82,18 +82,19 @@ environment:
   NGINX_SERVER_NAME: eclipcity.digitee.space
   NGINX_SSL_CERTIFICATE: "ssl_certificate /etc/letsencrypt/live/eclipcity.digitee.space/fullchain.pem;"
   NGINX_SSL_CERTIFICATE_KEY: "ssl_certificate_key /etc/letsencrypt/live/eclipcity.digitee.space/privkey.pem;"
-  NGINX_HTTP_REDIRECT: "if ($$scheme = http) { return 308 https://$$host$$request_uri; }"
+  NGINX_HTTP_REDIRECT: "if ($$redirect_to_https = 1) { return 301 https://$$host$$request_uri; }"
 ports:
   - "80:8080"
   - "443:8443"
 volumes:
-  - /etc/letsencrypt:/etc/letsencrypt:ro
+  - certbot-config:/etc/letsencrypt:ro
 ```
 
 The doubled dollar signs are required in Compose YAML so Nginx receives its own
-`$scheme`, `$host`, and `$request_uri` variables. Certificate bootstrapping and
-renewal hooks will be added with the AWS deployment configuration; TLS variables
-must not be enabled before Certbot has created the referenced certificate files.
+variables. `cicd/compose/frontend-tls.yaml` adds an independent Certbot container,
+persistent certificate/webroot volumes, port 443, and renewal. The deployment
+script first runs the HTTP-only base Compose for the initial ACME challenge and
+only enables the TLS override after the certificate exists.
 
 Production must use:
 
@@ -121,6 +122,7 @@ Store a JSON object with these keys:
   "POSTGRES_DB": "eclipcity",
   "POSTGRES_USER": "replace-me",
   "POSTGRES_PASSWORD": "replace-me",
+  "POSTGRES_SSL_MODE": "require",
   "FRONTEND_BASE_URL": "https://eclipcity.digitee.space",
   "BACKEND_PUBLIC_URL": "https://eclipcity.digitee.space/api",
   "POST_AUTH_REDIRECT_PATH": "/",
@@ -206,8 +208,8 @@ a reviewed reconciliation migration first.
 
 ## Production network boundary
 
-The future frontend EC2 will be the only public application host. Certbot will
-manage the certificate there, and Nginx will proxy `/api/*` to the backend EC2
+The frontend EC2 is the only public application host. Certbot manages the
+certificate there, and Nginx proxies `/api/*` to the backend EC2
 over the VPC private network. Backend port `8000` should accept traffic only from
 the frontend security group. PostgreSQL port `5432` should accept traffic only
 from the backend security group. Neither backend nor PostgreSQL should expose an

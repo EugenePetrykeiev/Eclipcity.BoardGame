@@ -12,6 +12,7 @@ resource "aws_instance" "frontend" {
     aws_region         = var.aws_region
     domain_name        = var.domain_name
     backend_secret_arn = ""
+    compose_version    = var.docker_compose_version
   })
 
   user_data_replace_on_change = true
@@ -22,6 +23,12 @@ resource "aws_instance" "frontend" {
     volume_size           = var.root_volume_size_gb
     volume_type           = "gp3"
     delete_on_termination = true
+  }
+
+  lifecycle {
+    # Existing encrypted root volumes cannot change KMS keys in place. Keep the
+    # current volume; replacement instances still use the AWS-managed key above.
+    ignore_changes = [root_block_device[0].kms_key_id]
   }
 
   metadata_options {
@@ -79,6 +86,7 @@ resource "aws_instance" "backend" {
     aws_region         = var.aws_region
     domain_name        = var.domain_name
     backend_secret_arn = var.backend_secret_arn
+    compose_version    = var.docker_compose_version
   })
 
   user_data_replace_on_change = true
@@ -89,6 +97,12 @@ resource "aws_instance" "backend" {
     volume_size           = var.root_volume_size_gb
     volume_type           = "gp3"
     delete_on_termination = true
+  }
+
+  lifecycle {
+    # Existing encrypted root volumes cannot change KMS keys in place. Keep the
+    # current volume; replacement instances still use the AWS-managed key above.
+    ignore_changes = [root_block_device[0].kms_key_id]
   }
 
   metadata_options {

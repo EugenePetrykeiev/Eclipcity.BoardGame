@@ -35,6 +35,9 @@ services:
         condition: service_healthy
     ports:
       - "80:8080"
+    volumes:
+      - certbot-webroot:/var/www/certbot:ro
+      - certbot-runtime:/var/run/certbot:ro
     tmpfs:
       - /tmp
       - /var/cache/nginx
@@ -55,3 +58,8 @@ services:
 networks:
   frontend:
     driver: bridge
+
+volumes:
+  certbot-config:
+  certbot-webroot:
+  certbot-runtime:

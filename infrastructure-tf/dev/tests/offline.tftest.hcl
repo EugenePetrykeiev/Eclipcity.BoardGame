@@ -80,6 +80,21 @@ run "plan_dev_offline" {
   }
 
   assert {
+    condition     = var.private_backend_hostname == "backend.internal.dev.eclipcity.digitee.space"
+    error_message = "Nginx must use the stable private backend hostname."
+  }
+
+  assert {
+    condition     = var.github_repository == "EugenePetrykeiev/Eclipcity" && var.github_environment == "dev"
+    error_message = "GitHub OIDC must remain restricted to the Eclipcity dev environment."
+  }
+
+  assert {
+    condition     = length(module.cicd.repository_urls) == 5 && contains(keys(module.cicd.repository_urls), "certbot")
+    error_message = "CI/CD must retain separate backend, frontend, nginx, certbot, and deploy ECR repositories."
+  }
+
+  assert {
     condition     = var.frontend_instance_type == "t4g.micro" && var.backend_instance_type == "t4g.micro"
     error_message = "Free Tier-oriented dev must default both application nodes to t4g.micro."
   }

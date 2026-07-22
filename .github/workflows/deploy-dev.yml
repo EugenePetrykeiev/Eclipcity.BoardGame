@@ -14,6 +14,7 @@ on:
       - src/**
       - tests/**
       - Dockerfile.backend
+      - Dockerfile.certbot
       - Dockerfile.deploy
       - Dockerfile.frontend
       - Dockerfile.nginx
@@ -55,6 +56,7 @@ jobs:
       backend_image: ${{ steps.images.outputs.backend_image }}
       frontend_image: ${{ steps.images.outputs.frontend_image }}
       nginx_image: ${{ steps.images.outputs.nginx_image }}
+      certbot_image: ${{ steps.images.outputs.certbot_image }}
       deploy_image: ${{ steps.images.outputs.deploy_image }}
       release_id: ${{ steps.images.outputs.release_id }}
     steps:
@@ -120,6 +122,20 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Build and push certbot
+        id: certbot
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile.certbot
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.ECR_PREFIX }}/certbot:${{ env.RELEASE_ID }}
+          cache-from: type=gha,scope=certbot-arm64
+          cache-to: type=gha,mode=max,scope=certbot-arm64
+          provenance: mode=max
+          sbom: true
+
       - name: Build and push deployment bundle
         id: deploy
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -140,12 +156,14 @@ jobs:
           BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
           FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
           NGINX_DIGEST: ${{ steps.nginx.outputs.digest }}
+          CERTBOT_DIGEST: ${{ steps.certbot.outputs.digest }}
           DEPLOY_DIGEST: ${{ steps.deploy.outputs.digest }}
         run: |
           {
             echo "backend_image=${ECR_PREFIX}/backend@${BACKEND_DIGEST}"
             echo "frontend_image=${ECR_PREFIX}/frontend@${FRONTEND_DIGEST}"
             echo "nginx_image=${ECR_PREFIX}/nginx@${NGINX_DIGEST}"
+            echo "certbot_image=${ECR_PREFIX}/certbot@${CERTBOT_DIGEST}"
             echo "deploy_image=${ECR_PREFIX}/deploy@${DEPLOY_DIGEST}"
             echo "release_id=${RELEASE_ID}"
           } >> "${GITHUB_OUTPUT}"
@@ -205,11 +223,13 @@ jobs:
         env:
           FRONTEND_IMAGE: ${{ needs.build.outputs.frontend_image }}
           NGINX_IMAGE: ${{ needs.build.outputs.nginx_image }}
+          CERTBOT_IMAGE: ${{ needs.build.outputs.certbot_image }}
           DEPLOY_IMAGE: ${{ needs.build.outputs.deploy_image }}
           DEPLOY_RELEASE_ID: ${{ needs.build.outputs.release_id }}
         run: >-
           ./cicd/scripts/run-ssm-deploy.sh frontend
-          "${FRONTEND_IMAGE}" "${NGINX_IMAGE}" "${DEPLOY_IMAGE}" "${DEPLOY_RELEASE_ID}"
+          "${FRONTEND_IMAGE}" "${NGINX_IMAGE}" "${CERTBOT_IMAGE}"
+          "${DEPLOY_IMAGE}" "${DEPLOY_RELEASE_ID}"
 
   smoke-test:
     name: Verify public dev service
@@ -219,7 +239,7 @@ jobs:
     steps:
       - name: Check frontend and proxied backend readiness
         env:
-          BASE_URL: http://dev.eclipcity.digitee.space
+          BASE_URL: https://dev.eclipcity.digitee.space
         run: |
           for attempt in {1..30}; do
             if curl --fail --silent --show-error "${BASE_URL}/healthz" >/dev/null \

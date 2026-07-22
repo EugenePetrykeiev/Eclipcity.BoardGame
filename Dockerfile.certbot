@@ -1,0 +1,6 @@
+FROM certbot/certbot:v5.6.0
+
+COPY --chmod=0555 docker/certbot-renew-loop.sh /usr/local/bin/certbot-renew-loop
+COPY --chmod=0555 docker/certbot-fix-permissions.sh /usr/local/bin/certbot-fix-permissions
+
+ENTRYPOINT ["certbot"]

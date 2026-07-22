@@ -20,6 +20,10 @@ fi
 
 mkdir -p "${target}/${role}" "${target}/bin"
 cp "/bundle/compose/${role}.yaml" "${target}/${role}/compose.yaml"
+if [ "${role}" = "frontend" ]; then
+  cp "/bundle/compose/frontend-tls.yaml" "${target}/${role}/compose-tls.yaml"
+  chmod 0644 "${target}/${role}/compose-tls.yaml"
+fi
 cp "/bundle/bin/deploy-${role}" "${target}/bin/deploy-${role}"
 chmod 0644 "${target}/${role}/compose.yaml"
 chmod 0755 "${target}/bin/deploy-${role}"

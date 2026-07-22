@@ -16,14 +16,15 @@ Push у `main`, який змінює application/container/CI файли, за�
 
 1. повторює CI checks;
 2. через GitHub OIDC приймає короткоживучу AWS build role;
-3. збирає `linux/arm64` images `backend`, `frontend`, `nginx` і `deploy`;
+3. збирає `linux/arm64` images `backend`, `frontend`, `nginx`, `certbot` і `deploy`;
 4. публікує images в окремі ECR repositories з унікальним immutable tag;
 5. передає до deployment jobs точні `repository@sha256:...` URI;
 6. окремою backend role викликає backend SSM document;
 7. backend EC2 отримує secret безпосередньо з Secrets Manager, запускає Alembic
    і лише після успішної міграції оновлює backend;
-8. після здорового backend окремою frontend role оновлює frontend та nginx;
-9. перевіряє public `/healthz` і проксований `/api/ready`.
+8. після здорового backend окремою frontend role оновлює frontend, nginx та
+   certbot; під час першого запуску автоматично виконує HTTP-01 bootstrap;
+9. перевіряє через HTTPS public `/healthz` і проксований `/api/ready`.
 
 `deploy` image містить versioned Compose-файли та host scripts. Тому зміна в
 `cicd/` доставляється разом із release і не потребує окремого Terraform apply.
@@ -37,7 +38,7 @@ instance.
 
 До першого автодеплою потрібен один ручний infrastructure apply. Він створює:
 
-- чотири ECR repositories;
+- п'ять ECR repositories;
 - GitHub OIDC provider;
 - build, backend-deploy і frontend-deploy IAM roles;
 - два SSM documents і два Parameter Store pointers на поточні instance IDs;
@@ -45,6 +46,8 @@ instance.
 
 ```bash
 export TF_VAR_budget_alert_email="you@example.com"
+# Необов'язково: інакше Certbot використовує той самий email.
+export TF_VAR_certbot_email="certificates@example.com"
 terraform -chdir=infrastructure-tf/dev init -backend-config=backend.hcl
 terraform -chdir=infrastructure-tf/dev plan -out=dev.tfplan
 terraform -chdir=infrastructure-tf/dev show dev.tfplan
@@ -80,6 +83,7 @@ FRONTEND_BASE_URL=https://dev.eclipcity.digitee.space
 BACKEND_PUBLIC_URL=https://dev.eclipcity.digitee.space/api
 CORS_ORIGINS=https://dev.eclipcity.digitee.space
 GOOGLE_REDIRECT_URI=https://dev.eclipcity.digitee.space/api/auth/google/callback
+POSTGRES_SSL_MODE=require
 SESSION_COOKIE_SECURE=true
 SMTP_USE_TLS=true
 ```
@@ -89,19 +93,35 @@ redirect URIs; pipeline їх не змінює.
 
 ## Rollback і міграції
 
-Frontend/nginx автоматично повертаються до попередніх digest URI, якщо нові
-контейнери не проходять health checks. Backend автоматично не відкочується після
+Frontend/nginx/certbot автоматично повертаються до попередніх digest URI, якщо
+нові контейнери не проходять HTTPS health checks. Backend автоматично не
+відкочується після
 Alembic: schema migration вже могла змінити БД. Backend migrations мають бути
 backward-compatible; для проблемного release слід виправити migration/code і
 запустити новий immutable release.
 
 ## TLS
 
-Початковий smoke test використовує HTTP, а security group уже відкриває 80 і
-443. Після синхронізації DNS треба окремо виконати Certbot bootstrap та додати
-renewal timer/mount сертифіката до frontend Compose. До цього моменту pipeline не
-вдає, що HTTPS уже готовий: production URLs у backend secret перевіряються, але
-OAuth/login треба тестувати тільки після завершення TLS bootstrap.
+Certbot працює окремим контейнером на frontend EC2, але доставляється тим самим
+frontend deployment job. Сертифікати зберігаються у named volume
+`eclipcity-frontend_certbot-config`, а не в image, Git чи Terraform state.
+
+Під час першого deployment host script:
+
+1. підіймає nginx на 80 без TLS;
+2. отримує ECDSA-сертифікат через HTTP-01 webroot для
+   `dev.eclipcity.digitee.space`;
+3. робить certificate files доступними лише root і nginx group;
+4. вмикає 443, HTTP/2 і redirect з HTTP, залишаючи ACME path без redirect;
+5. перевіряє certificate chain та hostname локальним HTTPS-запитом.
+
+Renewal-контейнер запускає `certbot renew` кожні 12 годин. Успішне поновлення
+оновлює marker у спільному volume, після чого unprivileged nginx робить graceful
+reload. Порт 80 треба залишати відкритим для наступних HTTP-01 renewals.
+
+До першого deployment DNS A record уже має вказувати на frontend Elastic IP.
+Повторні release-и використовують наявний сертифікат і не створюють зайвих ACME
+orders.
 
 ## Ручний повторний запуск
 

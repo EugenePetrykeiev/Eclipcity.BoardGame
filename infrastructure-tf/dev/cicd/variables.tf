@@ -64,6 +64,17 @@ variable "public_domain" {
   type        = string
 }
 
+variable "certificate_email" {
+  description = "Contact email registered with Let's Encrypt for certificate expiry notices."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.certificate_email))
+    error_message = "certificate_email must be a valid email address."
+  }
+}
+
 variable "retained_release_count" {
   description = "Number of immutable image releases retained per ECR repository."
   type        = number
