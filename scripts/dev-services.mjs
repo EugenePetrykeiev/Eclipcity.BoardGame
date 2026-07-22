@@ -17,7 +17,7 @@ const services = [
       "src.backend.main:app",
       "--reload",
       "--host",
-      "127.0.0.1",
+      "localhost",
       "--port",
       "8000"
     ]
@@ -91,8 +91,8 @@ for (const service of services) {
   });
 }
 
-console.log("[services] Backend:  http://127.0.0.1:8000/docs");
-console.log("[services] Frontend: http://127.0.0.1:5173/");
+console.log("[services] Backend:  http://localhost:8000/docs");
+console.log("[services] Frontend: http://localhost:5173/");
 console.log("[services] Press Ctrl+C to stop both services.");
 
 process.on("SIGINT", () => {

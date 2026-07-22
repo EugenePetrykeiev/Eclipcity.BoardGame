@@ -1,0 +1,14 @@
+aws_region  = "eu-central-1"
+owner       = "platform"
+cost_center = "eclipcity"
+repository  = "Cartahena"
+
+# ARN is environment metadata; never paste the secret JSON itself.
+backend_secret_arn = "arn:aws:secretsmanager:eu-central-1:396287094980:secret:eclipcity/dev/backend-UCILpp"
+
+# Set this only when the secret is encrypted with a customer-managed KMS key.
+# backend_secret_kms_key_arn = "arn:aws:kms:eu-central-1:123456789012:key/REPLACE"
+
+extra_tags = {
+  Application = "game"
+}

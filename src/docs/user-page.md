@@ -128,15 +128,15 @@ lobby_events
 The app keeps empty lobbies as `closed` instead of physically deleting them. This
 removes them from active/public lists while preserving the event log.
 
-To create the tables in a configured database without permanently enabling startup
-DDL, run from the repository root:
+Apply the Alembic schema migrations from the repository root before starting the
+backend:
 
 ```bash
-python3 -m src.backend.create_tables
+alembic upgrade head
 ```
 
-Alternatively, set `AUTO_CREATE_TABLES=true` in local `.env` before starting the
-backend, then turn it back off after the schema exists.
+The backend never creates or alters tables during application startup. The local
+Docker stack runs the same command in its one-shot `migration` service.
 
 Implemented behavior:
 
@@ -198,7 +198,7 @@ src/backend/main.py
 src/backend/lobby_repository.py
 src/backend/models.py
 src/backend/schemas.py
-src/backend/create_tables.py
+migrations/
 ```
 
 Frontend implementation files:

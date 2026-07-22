@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+for attempt in $(seq 1 30); do
+  if dnf install -y docker jq; then
+    break
+  fi
+
+  if [[ "$${attempt}" -eq 30 ]]; then
+    echo "Unable to install base packages after $${attempt} attempts." >&2
+    exit 1
+  fi
+
+  sleep 10
+done
+
+systemctl enable --now docker
+systemctl enable --now amazon-ssm-agent
+usermod -aG docker ec2-user
+
+install -d -o root -g root -m 0755 /opt/eclipcity
+install -d -o root -g root -m 0700 /opt/eclipcity/env
+
+cat > /etc/eclipcity-node.conf <<'EOF'
+ECLIPCITY_ROLE=${instance_role}
+AWS_REGION=${aws_region}
+PUBLIC_DOMAIN=${domain_name}
+BACKEND_SECRET_ARN=${backend_secret_arn}
+EOF
+
+chown root:root /etc/eclipcity-node.conf
+chmod 0600 /etc/eclipcity-node.conf
+
+cat > /etc/docker/daemon.json <<'EOF'
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "5"
+  }
+}
+EOF
+
+systemctl restart docker
