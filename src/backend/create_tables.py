@@ -1,11 +1,14 @@
-import asyncio
+from pathlib import Path
 
-from .database import create_tables
+from alembic import command
+from alembic.config import Config
 
 
-async def main() -> None:
-    await create_tables()
+def main() -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    config = Config(project_root / "alembic.ini")
+    command.upgrade(config, "head")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

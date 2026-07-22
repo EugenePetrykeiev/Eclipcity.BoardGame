@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "npm run dev:frontend",
-    "dev:frontend": "vite --host 127.0.0.1 --port 5173",
-    "dev:backend": ".venv/bin/uvicorn src.backend.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:frontend": "vite --host localhost --port 5173",
+    "dev:backend": ".venv/bin/uvicorn src.backend.main:app --reload --host localhost --port 8000",
+    "dev:db": "node scripts/dev-db.mjs",
+    "dev:migrate": ".venv/bin/python -m alembic upgrade head",
+    "dev:local": "npm run dev:db && npm run dev:migrate && npm run dev:services",
     "dev:services": "node scripts/dev-services.mjs",
     "service": "npm run dev:services",
     "build": "vite build",

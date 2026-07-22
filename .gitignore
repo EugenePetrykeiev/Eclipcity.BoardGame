@@ -47,6 +47,10 @@ test-results/
 **/.terraform/
 *.tfstate
 *.tfstate.*
+infrastructure-tf/**/backend.hcl
+infrastructure-tf/**/terraform.tfvars
+infrastructure-tf/**/*.auto.tfvars
+infrastructure-tf/**/*.tfplan
 crash.log
 crash.*.log
 override.tf

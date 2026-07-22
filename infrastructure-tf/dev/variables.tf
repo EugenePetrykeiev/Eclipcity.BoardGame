@@ -1,0 +1,212 @@
+variable "aws_region" {
+  description = "AWS region for the dev environment."
+  type        = string
+  default     = "eu-central-1"
+}
+
+variable "aws_account_id" {
+  description = "AWS account allowed for this environment; prevents accidental cross-account apply."
+  type        = string
+  default     = "396287094980"
+}
+
+variable "project" {
+  description = "Stable project slug used in names and tags."
+  type        = string
+  default     = "eclipcity"
+
+  validation {
+    condition     = can(regex("^[a-z0-9-]+$", var.project))
+    error_message = "project must contain only lowercase letters, digits, and hyphens."
+  }
+}
+
+variable "environment" {
+  description = "Environment slug. This root module is intentionally limited to dev."
+  type        = string
+  default     = "dev"
+
+  validation {
+    condition     = var.environment == "dev"
+    error_message = "The infrastructure-tf/dev root may only manage the dev environment."
+  }
+}
+
+variable "domain_name" {
+  description = "Public application domain."
+  type        = string
+  default     = "dev.eclipcity.digitee.space"
+}
+
+variable "owner" {
+  description = "Team or person responsible for the resources."
+  type        = string
+  default     = "platform"
+}
+
+variable "cost_center" {
+  description = "Value used for AWS cost allocation."
+  type        = string
+  default     = "eclipcity"
+}
+
+variable "repository" {
+  description = "Repository name recorded on all supported AWS resources."
+  type        = string
+  default     = "Cartahena"
+}
+
+variable "extra_tags" {
+  description = "Additional non-secret tags applied through the AWS provider."
+  type        = map(string)
+  default     = {}
+}
+
+variable "vpc_cidr" {
+  description = "CIDR of the isolated dev VPC."
+  type        = string
+  default     = "10.20.0.0/16"
+}
+
+variable "public_subnet_cidrs" {
+  description = "One public subnet CIDR per availability zone."
+  type        = list(string)
+  default     = ["10.20.0.0/24", "10.20.1.0/24"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) == 2
+    error_message = "Exactly two public subnet CIDRs are required."
+  }
+}
+
+variable "private_subnet_cidrs" {
+  description = "One private application subnet CIDR per availability zone."
+  type        = list(string)
+  default     = ["10.20.10.0/24", "10.20.11.0/24"]
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) == 2
+    error_message = "Exactly two private subnet CIDRs are required."
+  }
+}
+
+variable "frontend_instance_type" {
+  description = "ARM-based EC2 type for the frontend/edge node."
+  type        = string
+  default     = "t4g.small"
+}
+
+variable "backend_instance_type" {
+  description = "ARM-based EC2 type for the backend node."
+  type        = string
+  default     = "t4g.small"
+}
+
+variable "root_volume_size_gb" {
+  description = "Encrypted gp3 root volume size for each EC2 instance."
+  type        = number
+  default     = 20
+
+  validation {
+    condition     = var.root_volume_size_gb >= 8
+    error_message = "root_volume_size_gb must be at least 8 GB."
+  }
+}
+
+variable "backend_port" {
+  description = "Private backend listener exposed only to the frontend security group."
+  type        = number
+  default     = 8000
+
+  validation {
+    condition     = var.backend_port >= 1024 && var.backend_port <= 65535
+    error_message = "backend_port must be between 1024 and 65535."
+  }
+}
+
+variable "backend_secret_arn" {
+  description = "Existing Secrets Manager secret ARN for the dev backend."
+  type        = string
+  default     = "arn:aws:secretsmanager:eu-central-1:396287094980:secret:eclipcity/dev/backend-UCILpp"
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:secretsmanager:", var.backend_secret_arn))
+    error_message = "backend_secret_arn must be a Secrets Manager ARN."
+  }
+}
+
+variable "database_instance_id" {
+  description = "Existing PostgreSQL EC2 instance connected through private VPC peering."
+  type        = string
+  default     = "i-02bf5a28818374a1c"
+
+  validation {
+    condition     = can(regex("^i-[0-9a-f]+$", var.database_instance_id))
+    error_message = "database_instance_id must be a valid EC2 instance ID."
+  }
+}
+
+variable "database_security_group_id" {
+  description = "Existing PostgreSQL security group that receives a backend-only ingress rule."
+  type        = string
+  default     = "sg-09b030b01fdfd4f39"
+
+  validation {
+    condition     = can(regex("^sg-[0-9a-f]+$", var.database_security_group_id))
+    error_message = "database_security_group_id must be a valid security group ID."
+  }
+}
+
+variable "database_route_table_id" {
+  description = "Existing main route table used implicitly by the PostgreSQL subnet."
+  type        = string
+  default     = "rtb-0bd8444443bb801b4"
+
+  validation {
+    condition     = can(regex("^rtb-[0-9a-f]+$", var.database_route_table_id))
+    error_message = "database_route_table_id must be a valid route table ID."
+  }
+}
+
+variable "database_port" {
+  description = "PostgreSQL listener port on the existing database EC2."
+  type        = number
+  default     = 5432
+}
+
+variable "private_database_hostname" {
+  description = "Stable private Route 53 hostname exposed only inside the dev VPC."
+  type        = string
+  default     = "postgres.internal.dev.eclipcity.digitee.space"
+}
+
+variable "backend_secret_kms_key_arn" {
+  description = "Optional customer-managed KMS key ARN used by the existing backend secret."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "enable_detailed_monitoring" {
+  description = "Enable EC2 one-minute monitoring (adds cost)."
+  type        = bool
+  default     = false
+}
+
+variable "enable_vpc_flow_logs" {
+  description = "Send accepted and rejected VPC flow logs to CloudWatch Logs."
+  type        = bool
+  default     = true
+}
+
+variable "vpc_flow_log_retention_days" {
+  description = "CloudWatch retention for VPC flow logs."
+  type        = number
+  default     = 30
+}
+
+variable "enable_ses_identity" {
+  description = "Create SES domain identity and output the DNS verification records."
+  type        = bool
+  default     = true
+}

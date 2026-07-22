@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     postgres_db: str | None = None
     postgres_user: str | None = None
     postgres_password: str | None = None
-    auto_create_tables: bool = False
 
     frontend_base_url: AnyUrl
     backend_public_url: AnyUrl | None = None

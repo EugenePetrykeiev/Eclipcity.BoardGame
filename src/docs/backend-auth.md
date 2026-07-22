@@ -30,13 +30,13 @@ pip install -r src/backend/requirements.txt
 Start FastAPI:
 
 ```bash
-uvicorn src.backend.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn src.backend.main:app --reload --host localhost --port 8000
 ```
 
 For the frontend, set:
 
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
 Reference file:
@@ -69,13 +69,15 @@ POSTGRES_PASSWORD=your-password
 
 If both formats are present, `DATABASE_URL` wins.
 
-The first version can create tables automatically when:
+Schema changes are managed only through Alembic. Apply pending migrations before
+starting the backend:
 
-```text
-AUTO_CREATE_TABLES=true
+```bash
+alembic upgrade head
 ```
 
-For production, keep `AUTO_CREATE_TABLES=false` and add migrations before deployment.
+The backend startup path does not create or alter tables. The local Docker stack
+runs Alembic through its one-shot `migration` service.
 
 Created tables:
 
@@ -148,25 +150,25 @@ This implementation uses a server-side OAuth redirect flow. That means Google ne
 Local development redirect URI:
 
 ```text
-http://127.0.0.1:8000/auth/google/callback
+http://localhost:8000/auth/google/callback
 ```
 
-When a deployed backend exists, set:
+For the single-origin production deployment, set:
 
 ```text
-BACKEND_PUBLIC_URL=https://your-backend-domain.example
+BACKEND_PUBLIC_URL=https://eclipcity.digitee.space/api
 ```
 
 Then add this Authorized redirect URI in Google Cloud:
 
 ```text
-https://your-backend-domain.example/auth/google/callback
+https://eclipcity.digitee.space/api/auth/google/callback
 ```
 
 Authorized JavaScript origins are not required for this backend-driven flow. They are only needed if the frontend uses Google Identity Services directly in the browser. If that approach is chosen later, add the frontend origin, for example:
 
 ```text
-http://127.0.0.1:5173
+http://localhost:5173
 ```
 
 Without a real domain, use only local development URLs in Google Cloud. After deployment, add the real backend redirect URI and, if needed, the frontend JavaScript origin.
@@ -181,7 +183,13 @@ GOOGLE_CLIENT_SECRET=...
 Optional explicit redirect override:
 
 ```text
-GOOGLE_REDIRECT_URI=http://127.0.0.1:8000/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
+```
+
+The Docker Compose redirect URI is:
+
+```text
+http://localhost/api/auth/google/callback
 ```
 
 Prefer `BACKEND_PUBLIC_URL` unless a proxy or hosting provider requires an exact override.
