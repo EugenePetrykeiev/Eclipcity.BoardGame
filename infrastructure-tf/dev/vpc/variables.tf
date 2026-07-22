@@ -23,6 +23,11 @@ variable "private_subnet_cidrs" {
   type        = list(string)
 }
 
+variable "enable_nat_gateway" {
+  description = "Whether private subnets receive Internet egress through a paid NAT Gateway."
+  type        = bool
+}
+
 variable "enable_flow_logs" {
   description = "Whether to create VPC flow logs."
   type        = bool

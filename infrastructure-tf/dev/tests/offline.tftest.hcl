@@ -58,6 +58,7 @@ mock_provider "aws" {
 
 variables {
   backend_secret_arn = "arn:aws:secretsmanager:eu-central-1:123456789012:secret:eclipcity/dev/backend-test"
+  budget_alert_email = "alerts@example.com"
 }
 
 run "plan_dev_offline" {
@@ -76,5 +77,20 @@ run "plan_dev_offline" {
   assert {
     condition     = var.private_database_hostname == "postgres.internal.dev.eclipcity.digitee.space"
     error_message = "The backend must use the stable private database hostname."
+  }
+
+  assert {
+    condition     = var.frontend_instance_type == "t4g.micro" && var.backend_instance_type == "t4g.micro"
+    error_message = "Free Tier-oriented dev must default both application nodes to t4g.micro."
+  }
+
+  assert {
+    condition     = var.enable_nat_gateway == false && module.vpc.nat_gateway_public_ip == null
+    error_message = "Free Tier-oriented dev must not create a NAT Gateway by default."
+  }
+
+  assert {
+    condition     = module.budget.name == "eclipcity-dev-monthly-cost"
+    error_message = "A monthly AWS Budget must be created when an alert email is configured."
   }
 }

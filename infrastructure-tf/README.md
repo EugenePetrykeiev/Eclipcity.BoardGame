@@ -10,10 +10,11 @@
 flowchart LR
   internet[Internet] -->|80, 443| eip[Elastic IP]
   eip --> frontend[Frontend / Nginx EC2\npublic subnet]
-  frontend -->|8000, private IP| backend[Backend EC2\nprivate subnet]
-  backend --> nat[NAT Gateway]
-  nat --> aws[AWS APIs / OAuth / SES]
+  frontend -->|8000, private IP| backend[Backend EC2\npublic subnet, inbound denied]
+  backend -->|outbound only| igw[Internet Gateway]
+  igw --> aws[AWS APIs / OAuth / SES / ECR]
   backend -->|5432, VPC peering| db[Existing PostgreSQL\ndefault VPC]
+  budget[AWS Budget] --> email[Cost alerts]
   ssm[AWS Systems Manager] --> frontend
   ssm --> backend
 ```
@@ -21,24 +22,29 @@ flowchart LR
 - Окремий VPC `10.20.0.0/16` і public/private subnet-и у двох Availability Zones.
 - Frontend/edge має стабільний Elastic IP. Лише `80/tcp` і `443/tcp` відкриті з
   Internet; порт 80 потрібен також для HTTP-01 Certbot і HTTPS redirect.
-- Backend не має public IP. Порт `8000/tcp` доступний лише від frontend security
-  group.
+- Backend має ephemeral public IPv4 для дешевого outbound Internet access, але
+  security group не має жодного public ingress. Порт `8000/tcp` доступний лише
+  від frontend security group, а frontend використовує private backend IP.
 - `22/tcp` не відкривається. Адміністративний доступ виконується через SSM Session
   Manager.
-- Один NAT Gateway дає backend стабільну вихідну IP-адресу для AWS API, Google,
-  SMTP/SES та registry. Трафік до БД не виходить у public Internet.
+- NAT Gateway за замовчуванням вимкнений. Backend виходить до AWS API, Google,
+  SMTP/SES та registry через Internet Gateway; inbound Internet traffic лишається
+  заблокованим. Трафік до БД іде більш специфічним private peering route.
 - Приватний VPC peering з default VPC; двосторонні routes і правило PostgreSQL
   дозволяють `5432/tcp` лише від backend security group.
 - Private Route 53 hostname
   `postgres.internal.dev.eclipcity.digitee.space` приховує нестабільні EC2 IP від
   конфігурації застосунку.
-- Root EBS volumes — `gp3`, зашифровані окремим KMS key; EC2 вимагають IMDSv2.
+- Обидва application EC2 за замовчуванням `t4g.micro`. Root EBS volumes — `gp3`,
+  зашифровані безплатним AWS-managed `alias/aws/ebs`; EC2 вимагають IMDSv2.
 - Увімкнені VPC Flow Logs з retention 30 днів.
+- Опційний account-level AWS Budget надсилає email при 50%/80% actual і 100%
+  forecasted від місячного ліміту; за замовчуванням ліміт `$25`.
 - SES identity для `dev.eclipcity.digitee.space` створюється Terraform, а A/SES
   записи синхронізуються окремим idempotent-скриптом через `adm.tools` API.
 
 Ці два EC2 розділяють ролі й зменшують blast radius, але **не є повною high
-availability**: кожна роль поки має один instance, а dev використовує один NAT.
+availability**: кожна роль поки має один instance.
 VPC уже розкладено на два AZ. Справжня HA потребуватиме ALB і щонайменше двох
 instances/targets для кожного критичного tier; це доцільніше зробити для `prod` або
 коли dev має витримувати відмову цілого AZ.
@@ -50,13 +56,13 @@ infrastructure-tf/
 ├── bootstrap/        # одноразове створення S3 remote state
 ├── dev/              # dev root module та environment-specific modules
 │   ├── dns/          # зовнішній DNS manifest і перевірка
+│   ├── budget/       # account-level monthly cost budget і email alerts
 │   ├── ec2/          # frontend/backend instances та Elastic IP
 │   ├── iam/          # SSM, ECR read-only, least-privilege secret access
-│   ├── kms/          # EBS encryption key
-│   ├── network/      # security groups
+│   ├── network/      # security groups, DB peering і routes
 │   ├── ses/          # SES identity, DKIM, MAIL FROM
 │   ├── s3/           # пояснення щодо application buckets
-│   └── vpc/          # VPC, subnets, routes, NAT, flow logs
+│   └── vpc/          # VPC, subnets, routes, optional NAT, flow logs
 ├── modules/          # майбутні shared modules після стабілізації dev/prod
 └── prod/             # окреме prod-середовище, ще не реалізоване
 ```
@@ -69,7 +75,7 @@ infrastructure-tf/
 
 - Terraform `>= 1.10`;
 - AWS CLI v2;
-- AWS account із дозволами на S3, VPC, EC2, IAM, KMS, CloudWatch Logs, SSM,
+- AWS account із дозволами на S3, VPC, EC2, IAM, Budgets, CloudWatch Logs, SSM,
   Secrets Manager metadata та SES;
 - `jq` і `dig` для DNS helper scripts;
 - наявні dev backend і `adm.tools` API secrets у `eu-central-1`.
@@ -113,6 +119,16 @@ cp infrastructure-tf/dev/terraform.tfvars.example infrastructure-tf/dev/terrafor
 `secretsmanager:GetSecretValue` тільки для цього ARN. Якщо secret зашифрований
 customer-managed KMS key, треба також встановити `backend_secret_kms_key_arn`.
 
+Для email cost alerts встановити локально:
+
+```bash
+export TF_VAR_budget_alert_email="you@example.com"
+```
+
+Email зберігатиметься у remote Terraform state як subscriber metadata, тому state
+bucket має лишатися приватним. Параметр обов'язковий: Terraform не дозволить plan
+або apply з вигаданою за замовчуванням адресою.
+
 Для dev у secret мають бути, зокрема:
 
 ```text
@@ -139,7 +155,16 @@ terraform -chdir=infrastructure-tf/dev apply dev.tfplan
 ```
 
 Застосовувати треба лише збережений і переглянутий plan. `dev.tfplan` і локальні
-`.tfvars` ігноруються Git.
+`.tfvars` ігноруються Git. Перший apply після переходу на cost-optimized dev:
+
+- видалить NAT Gateway та його Elastic IP;
+- замінить обидва application EC2 через зміну instance type/EBS key, а backend
+  також через перехід у public subnet;
+- переведе root volumes на `alias/aws/ebs`;
+- поставить попередній customer-managed KMS key у 30-денний deletion window.
+
+Це означає короткий downtime. До apply треба переглянути plan і переконатися, що
+на локальних root volumes EC2 немає незбережених application data.
 
 ## 4. DNS через adm.tools API
 
@@ -201,7 +226,7 @@ production-access request у цьому ж регіоні.
 Terraform **не створює, не перезапускає і не змінює дані БД**. Він додає лише:
 
 - peering між dev VPC і `vpc-0b4438217b4166a48`;
-- route до `172.31.0.0/16` у dev private route table;
+- route до `172.31.0.0/16` у dev public route table, де працює backend;
 - зворотний route до `10.20.0.0/16` у `rtb-0bd8444443bb801b4`;
 - ingress `5432/tcp` у `sg-09b030b01fdfd4f39` лише від backend SG;
 - private Route 53 A record на поточний private IP DB instance
@@ -239,8 +264,13 @@ terraform -chdir=infrastructure-tf/dev output -raw backend_ssm_command
 
 ## Вартість і наступні кроки
 
-Основні постійні витрати dev: два `t4g.small`, NAT Gateway та його traffic,
-Elastic/public IPv4, EBS, CloudWatch Logs і KMS. До наступного етапу залишено:
+Основні постійні витрати dev після оптимізації: три EC2 разом із наявною БД,
+public IPv4, EBS, Route 53 private zone, Secrets Manager і CloudWatch Logs. NAT
+Gateway і customer-managed EBS KMS key більше не потрібні. Budget за замовчуванням
+контролює account-wide витрати, оскільки tag-based cost allocation може з'являтися
+із затримкою.
+
+До наступного етапу залишено:
 
 - ECR repositories і GitHub Actions/OIDC deployment roles;
 - deployment Compose для окремих frontend/backend hosts;

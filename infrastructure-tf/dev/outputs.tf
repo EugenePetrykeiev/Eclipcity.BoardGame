@@ -19,7 +19,7 @@ output "frontend_public_ip" {
 }
 
 output "backend_instance_id" {
-  description = "Private backend EC2 instance ID."
+  description = "Backend EC2 instance ID."
   value       = module.ec2.backend_instance_id
 }
 
@@ -28,9 +28,19 @@ output "backend_private_ip" {
   value       = module.ec2.backend_private_ip
 }
 
+output "backend_public_ip" {
+  description = "Ephemeral backend public IPv4 for outbound Internet access; never use it as the application upstream."
+  value       = module.ec2.backend_public_ip
+}
+
 output "nat_gateway_public_ip" {
-  description = "Stable backend egress IP for external services. Database traffic uses private peering."
+  description = "NAT Gateway public IP when explicitly enabled; null in cost-optimized dev."
   value       = module.vpc.nat_gateway_public_ip
+}
+
+output "monthly_budget_name" {
+  description = "AWS Budget name."
+  value       = module.budget.name
 }
 
 output "database_vpc_peering_connection_id" {

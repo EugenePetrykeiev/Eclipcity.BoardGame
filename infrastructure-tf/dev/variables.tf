@@ -90,16 +90,22 @@ variable "private_subnet_cidrs" {
   }
 }
 
+variable "enable_nat_gateway" {
+  description = "Create a paid NAT Gateway for private subnet egress. Disabled for Free Tier-oriented dev."
+  type        = bool
+  default     = false
+}
+
 variable "frontend_instance_type" {
   description = "ARM-based EC2 type for the frontend/edge node."
   type        = string
-  default     = "t4g.small"
+  default     = "t4g.micro"
 }
 
 variable "backend_instance_type" {
   description = "ARM-based EC2 type for the backend node."
   type        = string
-  default     = "t4g.small"
+  default     = "t4g.micro"
 }
 
 variable "root_volume_size_gb" {
@@ -209,4 +215,27 @@ variable "enable_ses_identity" {
   description = "Create SES domain identity and output the DNS verification records."
   type        = bool
   default     = true
+}
+
+variable "monthly_budget_limit_usd" {
+  description = "Account-level monthly AWS cost budget used to protect dev Free Tier credits."
+  type        = number
+  default     = 25
+
+  validation {
+    condition     = var.monthly_budget_limit_usd > 0
+    error_message = "monthly_budget_limit_usd must be greater than zero."
+  }
+}
+
+variable "budget_alert_email" {
+  description = "Email receiving AWS Budget alerts. Set via terraform.tfvars or TF_VAR_budget_alert_email."
+  type        = string
+  nullable    = false
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.budget_alert_email))
+    error_message = "budget_alert_email must be a valid email address."
+  }
 }

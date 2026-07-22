@@ -94,7 +94,7 @@ resource "aws_vpc_peering_connection_options" "database" {
 }
 
 resource "aws_route" "backend_to_database" {
-  route_table_id            = var.private_route_table_id
+  route_table_id            = var.backend_route_table_id
   destination_cidr_block    = var.database_vpc_cidr
   vpc_peering_connection_id = aws_vpc_peering_connection.database.id
 }

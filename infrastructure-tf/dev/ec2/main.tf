@@ -3,7 +3,7 @@ resource "aws_instance" "frontend" {
   instance_type               = var.frontend_instance_type
   subnet_id                   = var.frontend_subnet_id
   vpc_security_group_ids      = [var.frontend_security_group_id]
-  associate_public_ip_address = false
+  associate_public_ip_address = true
   iam_instance_profile        = var.frontend_instance_profile
   monitoring                  = var.enable_detailed_monitoring
 
@@ -18,7 +18,7 @@ resource "aws_instance" "frontend" {
 
   root_block_device {
     encrypted             = true
-    kms_key_id            = var.ebs_kms_key_arn
+    kms_key_id            = "alias/aws/ebs"
     volume_size           = var.root_volume_size_gb
     volume_type           = "gp3"
     delete_on_termination = true
@@ -70,7 +70,7 @@ resource "aws_instance" "backend" {
   instance_type               = var.backend_instance_type
   subnet_id                   = var.backend_subnet_id
   vpc_security_group_ids      = [var.backend_security_group_id]
-  associate_public_ip_address = false
+  associate_public_ip_address = true
   iam_instance_profile        = var.backend_instance_profile
   monitoring                  = var.enable_detailed_monitoring
 
@@ -85,7 +85,7 @@ resource "aws_instance" "backend" {
 
   root_block_device {
     encrypted             = true
-    kms_key_id            = var.ebs_kms_key_arn
+    kms_key_id            = "alias/aws/ebs"
     volume_size           = var.root_volume_size_gb
     volume_type           = "gp3"
     delete_on_termination = true

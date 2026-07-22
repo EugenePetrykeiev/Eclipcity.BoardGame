@@ -14,11 +14,16 @@ output "private_subnet_ids" {
 }
 
 output "private_route_table_id" {
-  description = "Private application route table used for database peering."
+  description = "Private route table retained for future workloads; it has no default egress when NAT is disabled."
   value       = aws_route_table.private.id
 }
 
+output "public_route_table_id" {
+  description = "Public route table used by the cost-optimized backend and frontend nodes."
+  value       = aws_route_table.public.id
+}
+
 output "nat_gateway_public_ip" {
-  description = "Stable source IP for outbound private-subnet traffic."
-  value       = aws_eip.nat.public_ip
+  description = "NAT Gateway public IP when NAT is enabled; null in the default cost-optimized dev setup."
+  value       = try(aws_eip.nat[0].public_ip, null)
 }
