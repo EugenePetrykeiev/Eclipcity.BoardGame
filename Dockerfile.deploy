@@ -1,0 +1,14 @@
+FROM busybox:1.37-musl
+
+COPY cicd/compose/backend.yaml /bundle/compose/backend.yaml
+COPY cicd/compose/frontend.yaml /bundle/compose/frontend.yaml
+COPY cicd/scripts/deploy-backend.sh /bundle/bin/deploy-backend
+COPY cicd/scripts/deploy-frontend.sh /bundle/bin/deploy-frontend
+COPY cicd/scripts/install-bundle.sh /usr/local/bin/install-bundle
+
+RUN chmod 0555 /usr/local/bin/install-bundle \
+    /bundle/bin/deploy-backend \
+    /bundle/bin/deploy-frontend \
+    && chmod 0444 /bundle/compose/backend.yaml /bundle/compose/frontend.yaml
+
+ENTRYPOINT ["/usr/local/bin/install-bundle"]

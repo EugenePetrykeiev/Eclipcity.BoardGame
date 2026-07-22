@@ -1,0 +1,57 @@
+name: eclipcity-frontend
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE must be an immutable ECR digest}
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/index.html >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - frontend
+
+  nginx:
+    image: ${NGINX_IMAGE:?NGINX_IMAGE must be an immutable ECR digest}
+    environment:
+      NGINX_HTTP_PORT: "8080"
+      NGINX_HTTPS_LISTEN: ""
+      NGINX_HTTP2_DIRECTIVE: ""
+      NGINX_SERVER_NAME: ${PUBLIC_DOMAIN:?PUBLIC_DOMAIN is required}
+      NGINX_SSL_CERTIFICATE: ""
+      NGINX_SSL_CERTIFICATE_KEY: ""
+      NGINX_HTTP_REDIRECT: ""
+      FRONTEND_UPSTREAM: frontend:8080
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:?BACKEND_UPSTREAM is required}
+    depends_on:
+      frontend:
+        condition: service_healthy
+    ports:
+      - "80:8080"
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - frontend
+
+networks:
+  frontend:
+    driver: bridge
