@@ -21,6 +21,7 @@ flowchart LR
   budget[AWS Budget] --> email[Cost alerts]
   ssm[AWS Systems Manager] --> frontend
   ssm --> backend
+  ssm --> db
 ```
 
 - Окремий VPC `10.20.0.0/16` і public/private subnet-и у двох Availability Zones.
@@ -30,7 +31,8 @@ flowchart LR
   security group не має жодного public ingress. Порт `8000/tcp` доступний лише
   від frontend security group, а frontend використовує private backend IP.
 - `22/tcp` не відкривається. Адміністративний доступ виконується через SSM Session
-  Manager.
+  Manager. Terraform також закріплює SSM managed policy на наявній IAM role DB
+  EC2, щоб TLS/HBA обслуговувалися аудитованим runbook без SSH.
 - NAT Gateway за замовчуванням вимкнений. Backend виходить до AWS API, Google,
   SMTP/SES та registry через Internet Gateway; inbound Internet traffic лишається
   заблокованим. Трафік до БД іде більш специфічним private peering route.
@@ -69,7 +71,7 @@ infrastructure-tf/
 │   ├── cicd/         # ECR, GitHub OIDC roles, SSM deployment documents
 │   ├── ec2/          # frontend/backend instances та Elastic IP
 │   ├── iam/          # SSM, ECR read-only, least-privilege secret access
-│   ├── network/      # security groups, DB peering і routes
+│   ├── network/      # security groups, DB peering/routes і PostgreSQL TLS runbook
 │   ├── ses/          # SES identity, DKIM, MAIL FROM
 │   ├── s3/           # пояснення щодо application buckets
 │   └── vpc/          # VPC, subnets, routes, optional NAT, flow logs
@@ -235,7 +237,7 @@ production-access request у цьому ж регіоні.
 
 ## 5. Приватне підключення до наявної PostgreSQL
 
-Terraform **не створює, не перезапускає і не змінює дані БД**. Він додає лише:
+Terraform **не створює PostgreSQL і не змінює дані БД**. Він додає лише:
 
 - peering між dev VPC і `vpc-0b4438217b4166a48`;
 - route до `172.31.0.0/16` у dev public route table, де працює backend;
@@ -243,6 +245,13 @@ Terraform **не створює, не перезапускає і не змін�
 - ingress `5432/tcp` у `sg-09b030b01fdfd4f39` лише від backend SG;
 - private Route 53 A record на поточний private IP DB instance
   `i-02bf5a28818374a1c`.
+- `AmazonSSMManagedInstanceCore` до наявної role
+  `postgres-t4g-micro-ec2-role`; сама role та DB instance не імпортуються під
+  повне керування Terraform.
+
+DB security group є зовнішнім ресурсом, тому Terraform керує лише власним
+backend-SG rule. Legacy CIDR `95.91.245.200/32` видалено окремо; після змін у
+`5432/tcp` не повинно бути жодного `CidrIpv4`, лише reference на backend SG.
 
 Після apply перевірити hostname:
 
@@ -265,8 +274,26 @@ terraform -chdir=infrastructure-tf/dev output -raw database_private_hostname
 Решта credentials лишаються без змін. До оновлення secret backend не зможе
 використати приватний маршрут.
 
-Наявна PostgreSQL вимагає TLS. Перевірити та додати лише відповідний runtime
-параметр, не друкуючи значення secret:
+Окремий operator-runbook керує конфігурацією PostgreSQL через SSM. Спочатку
+перевірити план без змін, потім застосувати:
+
+```bash
+./infrastructure-tf/dev/network/configure-postgres-tls.sh plan
+./infrastructure-tf/dev/network/configure-postgres-tls.sh apply
+```
+
+`apply` робить timestamped backup у
+`/var/lib/pgsql/data/eclipcity-config-backups/`, створює server key/certificate,
+вмикає TLS 1.2+, додає тільки
+`hostssl userdb giant_adm 10.20.1.0/24 scram-sha-256`, перезапускає PostgreSQL і
+видаляє exact legacy public HBA rule, а потім перевіряє TLS handshake та
+certificate fingerprint. Будь-яка помилка до завершення запускає автоматичне
+відновлення backup і повторний restart.
+Повторний `apply` зберігає чинний certificate, доки до expiry більше 30 днів, і
+автоматично ротує його в останні 30 днів строку дії.
+
+Після успішної серверної перевірки додати відповідний runtime параметр у secret,
+не друкуючи інші значення:
 
 ```bash
 ./infrastructure-tf/dev/network/sync-postgres-ssl-secret.sh plan
@@ -275,6 +302,24 @@ terraform -chdir=infrastructure-tf/dev output -raw database_private_hostname
 
 Скрипт створює нову версію secret з `POSTGRES_SSL_MODE=require`; решта ключів і
 можливість повернути попередню версію Secrets Manager зберігаються.
+
+У dev використовується self-signed server certificate. Режим `require` шифрує
+канал, але не перевіряє ідентичність сервера; приватні peering route, SG та HBA є
+додатковою межею доступу. Для prod слід використати сертифікат від приватного CA,
+доставити CA bundle backend-контейнеру й перейти на `verify-full`.
+
+Якщо прикладні таблиці існували до Alembic, не можна робити blind stamp.
+Read-only audit порівнює живу схему з SQLAlchemy metadata, показує тільки table
+row counts/revision/TLS і відмовляється працювати при schema drift:
+
+```bash
+./cicd/scripts/run-database-baseline-audit.sh audit
+./cicd/scripts/run-database-baseline-audit.sh stamp
+```
+
+`stamp` спочатку повторює той самий audit і лише після чистого результату
+записує revision `20260717_0001`; прикладні таблиці й дані не змінюються. Команда
+ідемпотентна, якщо revision уже поточна.
 
 ## 6. Доступ до EC2
 

@@ -91,6 +91,30 @@ SMTP_USE_TLS=true
 Локальні OAuth URLs залишаються окремо у `.env.docker` і в Google Authorized
 redirect URIs; pipeline їх не змінює.
 
+`POSTGRES_SSL_MODE=require` шифрує з'єднання з dev PostgreSQL, але self-signed
+сертифікат не проходить identity verification. Для prod використовуйте CA bundle
+і `verify-full`.
+
+## Одноразовий Alembic baseline для наявної БД
+
+Initial migration створює всі application tables. Якщо база вже містить ці
+таблиці, перший migration job зупиниться на `DuplicateTable`; це захисна
+поведінка. Не використовуйте blind `alembic stamp`.
+
+Після того як failed deployment уже встановив candidate bundle/runtime env на
+backend EC2, виконайте з локального checkout:
+
+```bash
+./cicd/scripts/run-database-baseline-audit.sh audit
+./cicd/scripts/run-database-baseline-audit.sh stamp
+```
+
+Audit працює у read-only transaction через той самий immutable backend image і
+secret, порівнює tables/columns/types/constraints/indexes із поточною metadata та
+підтверджує TLS session. `stamp` повторює audit і записує
+`20260717_0001` тільки за відсутності drift. Після цього повторіть `Deploy dev`;
+звичайний migration service виконає `alembic upgrade head` перед API.
+
 ## Rollback і міграції
 
 Frontend/nginx/certbot автоматично повертаються до попередніх digest URI, якщо

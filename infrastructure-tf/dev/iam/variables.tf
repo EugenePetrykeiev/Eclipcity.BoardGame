@@ -14,6 +14,11 @@ variable "backend_secret_kms_key_arn" {
   nullable    = true
 }
 
+variable "database_instance_role_name" {
+  description = "Existing IAM role attached to the PostgreSQL EC2 instance."
+  type        = string
+}
+
 variable "tags" {
   description = "Common AWS tags."
   type        = map(string)

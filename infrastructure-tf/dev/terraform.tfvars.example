@@ -10,6 +10,9 @@ repository  = "Cartahena"
 # ARN is environment metadata; never paste the secret JSON itself.
 backend_secret_arn = "arn:aws:secretsmanager:eu-central-1:396287094980:secret:eclipcity/dev/backend-UCILpp"
 
+# Existing PostgreSQL EC2 role; Terraform attaches SSM management to it.
+# database_instance_role_name = "postgres-t4g-micro-ec2-role"
+
 # Required to create the $25/month account-level budget and email alerts.
 # Prefer setting this locally or as TF_VAR_budget_alert_email in CI.
 budget_alert_email = "REPLACE_WITH_REAL_EMAIL"

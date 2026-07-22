@@ -203,6 +203,17 @@ Before adopting Alembic on that database:
 6. From then on, run `alembic upgrade head` as a separate one-shot service before
    starting a new backend release.
 
+For the configured dev EC2 environment, the guarded SSM helper performs steps
+3–5 without exposing the database password:
+
+```bash
+./cicd/scripts/run-database-baseline-audit.sh audit
+./cicd/scripts/run-database-baseline-audit.sh stamp
+```
+
+The stamp mode repeats the read-only metadata comparison first and refuses to
+stamp when it finds schema drift or an unexpected existing revision.
+
 Do not stamp a schema with missing columns. If the comparison finds drift, create
 a reviewed reconciliation migration first.
 

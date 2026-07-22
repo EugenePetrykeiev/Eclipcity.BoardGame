@@ -184,6 +184,17 @@ variable "database_instance_id" {
   }
 }
 
+variable "database_instance_role_name" {
+  description = "IAM role already attached to the existing PostgreSQL EC2; Terraform grants it SSM management access."
+  type        = string
+  default     = "postgres-t4g-micro-ec2-role"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9+=,.@_-]{1,64}$", var.database_instance_role_name))
+    error_message = "database_instance_role_name must be a valid IAM role name."
+  }
+}
+
 variable "database_security_group_id" {
   description = "Existing PostgreSQL security group that receives a backend-only ingress rule."
   type        = string

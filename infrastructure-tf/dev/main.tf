@@ -31,10 +31,11 @@ module "network" {
 module "iam" {
   source = "./iam"
 
-  name_prefix                = local.name_prefix
-  backend_secret_arn         = var.backend_secret_arn
-  backend_secret_kms_key_arn = var.backend_secret_kms_key_arn
-  tags                       = local.common_tags
+  name_prefix                 = local.name_prefix
+  backend_secret_arn          = var.backend_secret_arn
+  backend_secret_kms_key_arn  = var.backend_secret_kms_key_arn
+  database_instance_role_name = var.database_instance_role_name
+  tags                        = local.common_tags
 }
 
 module "ec2" {
