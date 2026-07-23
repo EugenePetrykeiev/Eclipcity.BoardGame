@@ -27,12 +27,37 @@ Short alias:
 npm run service
 ```
 
+Run the complete localhost stack with a local PostgreSQL container and migrations:
+
+```bash
+npm run dev:local
+```
+
 This starts:
 
-1. Backend: `http://127.0.0.1:8000/docs`
-2. Frontend: `http://127.0.0.1:5173/`
+1. Backend: `http://localhost:8000/docs`
+2. Frontend: `http://localhost:5173/`
 
 Stop both services with `Ctrl+C`.
+
+## Local Docker Stack
+
+The containerized local environment serves the frontend and API through a
+dedicated Nginx service at the single origin `http://localhost`:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build
+```
+
+It uses separate frontend, backend, and Nginx images, an isolated local
+PostgreSQL, and a one-shot Alembic migration service. See
+`docs/containerization.md` for OAuth, SMTP/SES, TLS templating, AWS Secrets
+Manager, and existing-database baseline instructions.
+
+Automatic ARM64 image delivery to the separate dev EC2 hosts is described in
+`cicd/README.md`. GitHub Actions uses AWS OIDC and SSM; no SSH port or long-lived
+AWS access keys are required.
 
 For a production build and home-page smoke test:
 

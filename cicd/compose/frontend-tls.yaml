@@ -1,0 +1,36 @@
+services:
+  nginx:
+    environment:
+      NGINX_HTTPS_LISTEN: "listen 8443 ssl;"
+      NGINX_HTTP2_DIRECTIVE: "http2 on;"
+      NGINX_SSL_CERTIFICATE: "ssl_certificate /etc/letsencrypt/live/${PUBLIC_DOMAIN}/fullchain.pem;"
+      NGINX_SSL_CERTIFICATE_KEY: "ssl_certificate_key /etc/letsencrypt/live/${PUBLIC_DOMAIN}/privkey.pem;"
+      NGINX_HTTP_REDIRECT: "if ($$redirect_to_https = 1) { return 301 https://$$host$$request_uri; }"
+    ports:
+      - "443:8443"
+    volumes:
+      - certbot-config:/etc/letsencrypt:ro
+
+  certbot:
+    image: ${CERTBOT_IMAGE:?CERTBOT_IMAGE must be an immutable ECR digest}
+    entrypoint:
+      - /usr/local/bin/certbot-renew-loop
+    depends_on:
+      nginx:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - certbot-config:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+      - certbot-runtime:/var/run/certbot
+    restart: unless-stopped
+    networks:
+      - frontend

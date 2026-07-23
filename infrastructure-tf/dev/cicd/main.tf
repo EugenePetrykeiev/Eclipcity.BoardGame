@@ -1,5 +1,5 @@
 locals {
-  components = toset(["backend", "deploy", "frontend", "nginx"])
+  components = toset(["backend", "certbot", "deploy", "frontend", "nginx"])
 
   github_subject = coalesce(
     var.github_oidc_subject,
@@ -205,6 +205,12 @@ resource "aws_ssm_document" "frontend" {
         allowedPattern    = "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/.+@sha256:[a-f0-9]{64}$"
         interpolationType = "ENV_VAR"
       }
+      CertbotImageUri = {
+        type              = "String"
+        description       = "Immutable ECR certbot image URI including sha256 digest"
+        allowedPattern    = "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/.+@sha256:[a-f0-9]{64}$"
+        interpolationType = "ENV_VAR"
+      }
       ReleaseId = {
         type              = "String"
         description       = "Auditable GitHub release identifier"
@@ -232,7 +238,7 @@ resource "aws_ssm_document" "frontend" {
             "aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin \"$bundle_registry\" >/dev/null",
             "docker pull \"$SSM_BundleImageUri\"",
             "docker run --rm --read-only --network none --cap-drop ALL --security-opt no-new-privileges -v /opt/eclipcity:/target \"$SSM_BundleImageUri\" frontend",
-            "/opt/eclipcity/bin/deploy-frontend \"$SSM_FrontendImageUri\" \"$SSM_NginxImageUri\" \"$SSM_ReleaseId\" \"${var.backend_private_hostname}:${var.backend_port}\" \"${var.public_domain}\"",
+            "/opt/eclipcity/bin/deploy-frontend \"$SSM_FrontendImageUri\" \"$SSM_NginxImageUri\" \"$SSM_CertbotImageUri\" \"$SSM_ReleaseId\" \"${var.backend_private_hostname}:${var.backend_port}\" \"${var.public_domain}\" \"${var.certificate_email}\"",
           ]
         }
       },

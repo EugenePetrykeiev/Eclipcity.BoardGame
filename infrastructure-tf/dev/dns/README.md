@@ -53,7 +53,8 @@ Terraform resource, and DNS changes always require an explicit command. It never
 deletes records and refuses to mutate anything outside
 `dev.eclipcity.digitee.space`.
 
-After propagation, run `check-dns.sh`. Do not request the Certbot certificate
-until the A record resolves to the expected Elastic IP. Hosting Ukraine documents
-the same Bearer-authenticated DNS endpoints for Certbot hooks:
+After propagation, run `check-dns.sh`. Do not start the first automatic deployment
+until the A record resolves to the expected Elastic IP; its frontend stage will
+request the Certbot certificate through HTTP-01. Hosting Ukraine documents the
+same Bearer-authenticated DNS endpoints:
 https://www.ukraine.com.ua/wiki/vps/administration/certbot/

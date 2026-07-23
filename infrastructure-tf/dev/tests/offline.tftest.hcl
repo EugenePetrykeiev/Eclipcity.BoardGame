@@ -90,6 +90,11 @@ run "plan_dev_offline" {
   }
 
   assert {
+    condition     = length(module.cicd.repository_urls) == 5 && contains(keys(module.cicd.repository_urls), "certbot")
+    error_message = "CI/CD must retain separate backend, frontend, nginx, certbot, and deploy ECR repositories."
+  }
+
+  assert {
     condition     = var.frontend_instance_type == "t4g.micro" && var.backend_instance_type == "t4g.micro"
     error_message = "Free Tier-oriented dev must default both application nodes to t4g.micro."
   }

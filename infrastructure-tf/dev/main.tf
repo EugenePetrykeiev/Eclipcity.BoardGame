@@ -31,10 +31,11 @@ module "network" {
 module "iam" {
   source = "./iam"
 
-  name_prefix                = local.name_prefix
-  backend_secret_arn         = var.backend_secret_arn
-  backend_secret_kms_key_arn = var.backend_secret_kms_key_arn
-  tags                       = local.common_tags
+  name_prefix                 = local.name_prefix
+  backend_secret_arn          = var.backend_secret_arn
+  backend_secret_kms_key_arn  = var.backend_secret_kms_key_arn
+  database_instance_role_name = var.database_instance_role_name
+  tags                        = local.common_tags
 }
 
 module "ec2" {
@@ -105,9 +106,10 @@ module "cicd" {
   github_oidc_subject      = var.github_oidc_subject_override
   frontend_instance_id     = module.ec2.frontend_instance_id
   backend_instance_id      = module.ec2.backend_instance_id
-  backend_private_hostname = module.dns.backend_private_hostname
+  backend_private_hostname = var.private_backend_hostname
   backend_port             = var.backend_port
   public_domain            = var.domain_name
+  certificate_email        = coalesce(var.certbot_email, var.budget_alert_email)
   retained_release_count   = var.ecr_retained_release_count
   tags                     = local.common_tags
 }

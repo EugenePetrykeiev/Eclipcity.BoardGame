@@ -224,7 +224,14 @@ while IFS= read -r desired_record; do
   current_data="$(printf '%s' "${matches}" | jq -r '.[0].data // ""')"
   current_priority="$(printf '%s' "${matches}" | jq -r '.[0].prioritet // .[0].priority // 0 | tonumber')"
 
-  if [[ "${current_data}" == "${record_data}" && "${current_priority}" -eq "${priority}" ]]; then
+  comparison_current_data="${current_data}"
+  comparison_record_data="${record_data}"
+  if [[ "${record_type}" == "CNAME" || "${record_type}" == "MX" ]]; then
+    comparison_current_data="${comparison_current_data%.}"
+    comparison_record_data="${comparison_record_data%.}"
+  fi
+
+  if [[ "${comparison_current_data}" == "${comparison_record_data}" && "${current_priority}" -eq "${priority}" ]]; then
     printf 'OK     %-5s %s\n' "${record_type}" "${fqdn}"
     noop_count=$((noop_count + 1))
     continue

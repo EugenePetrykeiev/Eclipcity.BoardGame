@@ -1,0 +1,74 @@
+name: eclipcity-backend
+
+x-backend-common: &backend-common
+  env_file:
+    - /run/eclipcity/backend.env
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - backend
+
+services:
+  migration:
+    <<: *backend-common
+    image: ${CANDIDATE_BACKEND_IMAGE:?CANDIDATE_BACKEND_IMAGE must be an immutable ECR digest}
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  backend-blue:
+    <<: *backend-common
+    image: ${BACKEND_BLUE_IMAGE:?BACKEND_BLUE_IMAGE must be an immutable ECR digest}
+    init: true
+    healthcheck: &backend-healthcheck
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  backend-green:
+    <<: *backend-common
+    image: ${BACKEND_GREEN_IMAGE:?BACKEND_GREEN_IMAGE must be an immutable ECR digest}
+    init: true
+    healthcheck: *backend-healthcheck
+    restart: unless-stopped
+
+  router:
+    image: ${NGINX_IMAGE:?NGINX_IMAGE must be an immutable ECR digest}
+    environment:
+      NGINX_HTTP_PORT: "8080"
+      BACKEND_SLOT_UPSTREAM: ${BACKEND_ACTIVE_SERVICE:?BACKEND_ACTIVE_SERVICE is required}:8000
+    ports:
+      - "${BACKEND_BIND_IP:?BACKEND_BIND_IP is required}:8000:8080"
+    volumes:
+      - /opt/eclipcity/backend/backend-router.conf.template:/etc/nginx/templates/default.conf.template:ro
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ready >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge

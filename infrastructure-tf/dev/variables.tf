@@ -184,6 +184,17 @@ variable "database_instance_id" {
   }
 }
 
+variable "database_instance_role_name" {
+  description = "IAM role already attached to the existing PostgreSQL EC2; Terraform grants it SSM management access."
+  type        = string
+  default     = "postgres-t4g-micro-ec2-role"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9+=,.@_-]{1,64}$", var.database_instance_role_name))
+    error_message = "database_instance_role_name must be a valid IAM role name."
+  }
+}
+
 variable "database_security_group_id" {
   description = "Existing PostgreSQL security group that receives a backend-only ingress rule."
   type        = string
@@ -297,5 +308,21 @@ variable "budget_alert_email" {
   validation {
     condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.budget_alert_email))
     error_message = "budget_alert_email must be a valid email address."
+  }
+}
+
+variable "certbot_email" {
+  description = "Optional Let's Encrypt contact email. Defaults to budget_alert_email."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+
+  validation {
+    condition = (
+      var.certbot_email == null ||
+      can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.certbot_email))
+    )
+    error_message = "certbot_email must be null or a valid email address."
   }
 }

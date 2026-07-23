@@ -96,6 +96,7 @@ if ! printf '%s' "${secret_json}" | jq -e \
       "POSTGRES_DB",
       "POSTGRES_USER",
       "POSTGRES_PASSWORD",
+      "POSTGRES_SSL_MODE",
       "FRONTEND_BASE_URL",
       "BACKEND_PUBLIC_URL",
       "CORS_ORIGINS",
@@ -112,6 +113,7 @@ if ! printf '%s' "${secret_json}" | jq -e \
       "SMTP_USE_TLS"
     ][]; ($root[.] | type == "string" and length > 0))
     and (($root.SESSION_SECRET_KEY | length) >= 32)
+    and ($root.POSTGRES_SSL_MODE == "require")
     and ($root.FRONTEND_BASE_URL == $frontend_url)
     and ($root.BACKEND_PUBLIC_URL == $backend_url)
     and ($root.CORS_ORIGINS == $frontend_url)
@@ -135,6 +137,7 @@ printf '%s' "${secret_json}" | jq -r '
     | gsub("\\n"; "\\n");
   [
     "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD",
+    "POSTGRES_SSL_MODE",
     "FRONTEND_BASE_URL", "BACKEND_PUBLIC_URL", "POST_AUTH_REDIRECT_PATH", "CORS_ORIGINS",
     "SESSION_SECRET_KEY", "SESSION_COOKIE_NAME", "SESSION_COOKIE_MAX_AGE", "SESSION_COOKIE_SECURE",
     "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI",

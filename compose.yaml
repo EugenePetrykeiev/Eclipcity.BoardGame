@@ -1,0 +1,163 @@
+name: eclipcity
+
+x-backend-environment: &backend-environment
+  POSTGRES_HOST: database
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.docker}
+  POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.docker}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+  POSTGRES_SSL_MODE: ${POSTGRES_SSL_MODE:-disable}
+  FRONTEND_BASE_URL: ${LOCAL_ORIGIN:-http://localhost}
+  BACKEND_PUBLIC_URL: ${LOCAL_ORIGIN:-http://localhost}/api
+  POST_AUTH_REDIRECT_PATH: /
+  CORS_ORIGINS: ${LOCAL_ORIGIN:-http://localhost},http://127.0.0.1
+  SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?Set SESSION_SECRET_KEY in .env.docker}
+  SESSION_COOKIE_NAME: eclipcity_session
+  SESSION_COOKIE_MAX_AGE: "1209600"
+  SESSION_COOKIE_SECURE: "false"
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+  SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Eclipcity}
+  SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.docker}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.docker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - app
+
+  migration:
+    image: eclipcity-backend:local
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-environment
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - app
+
+  backend:
+    image: eclipcity-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment: *backend-environment
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - app
+
+  frontend:
+    image: eclipcity-frontend:local
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: /api
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/index.html >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - app
+
+  nginx:
+    image: eclipcity-nginx:local
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    environment:
+      NGINX_HTTP_PORT: "8080"
+      NGINX_HTTPS_LISTEN: ${NGINX_HTTPS_LISTEN:-}
+      NGINX_HTTP2_DIRECTIVE: ${NGINX_HTTP2_DIRECTIVE:-}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-localhost}
+      NGINX_SSL_CERTIFICATE: ${NGINX_SSL_CERTIFICATE:-}
+      NGINX_SSL_CERTIFICATE_KEY: ${NGINX_SSL_CERTIFICATE_KEY:-}
+      NGINX_HTTP_REDIRECT: ${NGINX_HTTP_REDIRECT:-}
+      FRONTEND_UPSTREAM: frontend:8080
+      BACKEND_UPSTREAM: backend:8000
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-80}:8080"
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - app
+
+volumes:
+  postgres-data:
+
+networks:
+  app:
+    driver: bridge

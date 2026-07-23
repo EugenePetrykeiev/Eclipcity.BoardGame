@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote_plus
 
 from pydantic import AnyUrl, BeforeValidator, Field, model_validator
@@ -27,7 +27,14 @@ class Settings(BaseSettings):
     postgres_db: str | None = None
     postgres_user: str | None = None
     postgres_password: str | None = None
-    auto_create_tables: bool = False
+    postgres_ssl_mode: Literal[
+        "disable",
+        "allow",
+        "prefer",
+        "require",
+        "verify-ca",
+        "verify-full",
+    ] = "disable"
 
     frontend_base_url: AnyUrl
     backend_public_url: AnyUrl | None = None
@@ -72,9 +79,10 @@ class Settings(BaseSettings):
         password = quote_plus(self.postgres_password or "")
         host = self.postgres_host
         db_name = quote_plus(self.postgres_db or "")
+        ssl_mode = quote_plus(self.postgres_ssl_mode)
         self.database_url = (
             f"postgresql+asyncpg://{user}:{password}"
-            f"@{host}:{self.postgres_port}/{db_name}"
+            f"@{host}:{self.postgres_port}/{db_name}?ssl={ssl_mode}"
         )
         return self
 

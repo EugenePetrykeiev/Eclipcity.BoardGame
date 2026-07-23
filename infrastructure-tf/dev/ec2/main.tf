@@ -25,6 +25,12 @@ resource "aws_instance" "frontend" {
     delete_on_termination = true
   }
 
+  lifecycle {
+    # Existing encrypted root volumes cannot change KMS keys in place. Keep the
+    # current volume; replacement instances still use the AWS-managed key above.
+    ignore_changes = [root_block_device[0].kms_key_id]
+  }
+
   metadata_options {
     http_endpoint               = "enabled"
     http_protocol_ipv6          = "disabled"
@@ -91,6 +97,12 @@ resource "aws_instance" "backend" {
     volume_size           = var.root_volume_size_gb
     volume_type           = "gp3"
     delete_on_termination = true
+  }
+
+  lifecycle {
+    # Existing encrypted root volumes cannot change KMS keys in place. Keep the
+    # current volume; replacement instances still use the AWS-managed key above.
+    ignore_changes = [root_block_device[0].kms_key_id]
   }
 
   metadata_options {
