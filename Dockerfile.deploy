@@ -1,15 +1,30 @@
 FROM busybox:1.37-musl
 
 COPY cicd/compose/backend.yaml /bundle/compose/backend.yaml
+COPY cicd/compose/backend-blue-green.yaml /bundle/compose/backend-blue-green.yaml
 COPY cicd/compose/frontend.yaml /bundle/compose/frontend.yaml
+COPY cicd/compose/frontend-blue-green.yaml /bundle/compose/frontend-blue-green.yaml
 COPY cicd/compose/frontend-tls.yaml /bundle/compose/frontend-tls.yaml
+COPY cicd/nginx/backend-router.conf.template /bundle/nginx/backend-router.conf.template
+COPY docker/nginx.conf.template /bundle/nginx/frontend.conf.template
 COPY cicd/scripts/deploy-backend.sh /bundle/bin/deploy-backend
+COPY cicd/scripts/deploy-backend-blue-green.sh /bundle/bin/deploy-backend-blue-green
 COPY cicd/scripts/deploy-frontend.sh /bundle/bin/deploy-frontend
+COPY cicd/scripts/deploy-frontend-blue-green.sh /bundle/bin/deploy-frontend-blue-green
 COPY cicd/scripts/install-bundle.sh /usr/local/bin/install-bundle
 
 RUN chmod 0555 /usr/local/bin/install-bundle \
     /bundle/bin/deploy-backend \
+    /bundle/bin/deploy-backend-blue-green \
     /bundle/bin/deploy-frontend \
-    && chmod 0444 /bundle/compose/backend.yaml /bundle/compose/frontend.yaml /bundle/compose/frontend-tls.yaml
+    /bundle/bin/deploy-frontend-blue-green \
+    && chmod 0444 \
+    /bundle/compose/backend.yaml \
+    /bundle/compose/backend-blue-green.yaml \
+    /bundle/compose/frontend.yaml \
+    /bundle/compose/frontend-blue-green.yaml \
+    /bundle/compose/frontend-tls.yaml \
+    /bundle/nginx/backend-router.conf.template \
+    /bundle/nginx/frontend.conf.template
 
 ENTRYPOINT ["/usr/local/bin/install-bundle"]
