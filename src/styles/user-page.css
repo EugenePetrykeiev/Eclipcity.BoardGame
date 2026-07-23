@@ -859,6 +859,143 @@
   line-height: 1.7;
 }
 
+.settings-modal {
+  width: min(580px, 100%);
+}
+
+.sound-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border: 1px solid rgba(230, 234, 240, 0.14);
+  border-radius: 8px;
+  background: rgba(10, 14, 20, 0.62);
+}
+
+.sound-setting-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.sound-setting-copy > span:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.sound-setting-copy strong,
+.volume-setting strong {
+  color: var(--color-text-primary);
+}
+
+.sound-setting-copy small {
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.sound-setting-icon {
+  display: grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(182, 255, 0, 0.32);
+  border-radius: 50%;
+  color: var(--color-accent-primary);
+  background: rgba(182, 255, 0, 0.08);
+}
+
+.sound-switch {
+  position: relative;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.sound-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.sound-switch-track {
+  display: block;
+  width: 58px;
+  height: 32px;
+  padding: 3px;
+  border: 1px solid rgba(138, 150, 166, 0.52);
+  border-radius: 999px;
+  background: rgba(92, 103, 115, 0.32);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.sound-switch-track span {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.sound-switch input:checked + .sound-switch-track {
+  border-color: var(--color-accent-primary);
+  background: rgba(182, 255, 0, 0.16);
+}
+
+.sound-switch input:checked + .sound-switch-track span {
+  background: var(--color-accent-primary);
+  box-shadow: 0 0 14px rgba(182, 255, 0, 0.38);
+  transform: translateX(26px);
+}
+
+.sound-switch input:focus-visible + .sound-switch-track {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 3px;
+}
+
+.volume-setting {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(230, 234, 240, 0.14);
+  border-radius: 8px;
+  background: rgba(10, 14, 20, 0.62);
+}
+
+.volume-setting > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.volume-setting output {
+  color: var(--color-accent-primary);
+  font-family: var(--font-hud);
+  font-size: 1.05rem;
+}
+
+.volume-setting input {
+  width: 100%;
+  accent-color: var(--color-accent-primary);
+  cursor: pointer;
+}
+
+.volume-setting input:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.settings-modal .settings-auto-save {
+  color: var(--color-muted-dark);
+  font-size: 0.78rem;
+}
+
 .toast-stack {
   position: fixed;
   top: 22px;

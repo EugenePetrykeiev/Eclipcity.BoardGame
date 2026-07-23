@@ -3,6 +3,7 @@ import HomePage from "./pages/HomePage.jsx";
 import GamePage from "./pages/GamePage.jsx";
 import UserPage from "./pages/UserPage.jsx";
 import { getAuthSession } from "./services/authClient.js";
+import { audioManager } from "./services/audioManager.js";
 
 export default function App() {
   const [homeAuthCheck, setHomeAuthCheck] = useState(
@@ -33,6 +34,60 @@ export default function App() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const isGameScene = window.location.pathname.startsWith("/game/");
+    if (!isGameScene && homeAuthCheck === "checking") {
+      return;
+    }
+
+    audioManager.setScene(isGameScene ? "battle" : "menu");
+  }, [homeAuthCheck]);
+
+  useEffect(() => {
+    const clickableSelector = [
+      "button:not(:disabled)",
+      "a[href]",
+      "select:not(:disabled)",
+      'input[type="checkbox"]:not(:disabled)',
+      'input[type="range"]:not(:disabled)',
+      '[role="button"]'
+    ].join(",");
+    const hoverableSelector = `${clickableSelector},[data-ui-sound]`;
+
+    function getUiTarget(event, selector = clickableSelector) {
+      const target = event.target instanceof Element
+        ? event.target.closest(selector)
+        : null;
+      if (!target || target.closest("[data-audio-scope]")) {
+        return null;
+      }
+      return target;
+    }
+
+    function handleUiClick(event) {
+      if (getUiTarget(event)) {
+        audioManager.playEffect("hitButton");
+      }
+    }
+
+    function handleUiHover(event) {
+      const target = getUiTarget(event, hoverableSelector);
+      if (
+        target &&
+        (!event.relatedTarget || !target.contains(event.relatedTarget))
+      ) {
+        audioManager.playEffect("hoverButton");
+      }
+    }
+
+    document.addEventListener("click", handleUiClick);
+    document.addEventListener("pointerover", handleUiHover);
+    return () => {
+      document.removeEventListener("click", handleUiClick);
+      document.removeEventListener("pointerover", handleUiHover);
     };
   }, []);
 
