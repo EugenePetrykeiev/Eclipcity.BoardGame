@@ -13,6 +13,10 @@ import {
   startLobbyGame,
   updateLobbyPlayer
 } from "../services/authClient.js";
+import {
+  audioManager,
+  MAX_AUDIO_VOLUME
+} from "../services/audioManager.js";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { defaultLobbyName, validateLobbyName } from "../utils/lobbyName.js";
 import defaultUserAvatar from "../assets/default-user-avatar.svg";
@@ -115,7 +119,10 @@ export default function UserPage() {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
   const [notifications, setNotifications] = useState([]);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [audioPreferences, setAudioPreferences] = useState(() =>
+    audioManager.getPreferences()
+  );
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activePanel, setActivePanel] = useState(null);
   const [lobbyForm, setLobbyForm] = useState({
     name: "",
@@ -230,6 +237,8 @@ export default function UserPage() {
     };
   }, []);
 
+  useEffect(() => audioManager.subscribe(setAudioPreferences), []);
+
   useEffect(() => {
     if (status !== "ready" || !lobby?.code) {
       return undefined;
@@ -296,9 +305,13 @@ export default function UserPage() {
   }
 
   function toggleSound() {
-    const nextValue = !soundEnabled;
-    setSoundEnabled(nextValue);
+    const nextValue = !audioPreferences.enabled;
+    audioManager.setEnabled(nextValue);
     notify(nextValue ? t("actions.soundOnToast") : t("actions.soundOffToast"));
+  }
+
+  function changeSoundVolume(event) {
+    audioManager.setVolume(Number(event.target.value) / 100);
   }
 
   function userHomePath() {
@@ -351,14 +364,7 @@ export default function UserPage() {
     }
 
     if (action.id === "settings") {
-      if (lobby && !lobby.minimized) {
-        setLobby((current) => (current ? { ...current, minimized: true } : current));
-        setActivePanel(null);
-        notify(t("lobby.minimizedToast"));
-        return;
-      }
-
-      notify(t("actions.settingsToast"));
+      setIsSettingsOpen(true);
       return;
     }
 
@@ -994,6 +1000,76 @@ export default function UserPage() {
         </div>
       )}
 
+      {isSettingsOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="confirm-modal settings-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label={t("common.close")}
+              onClick={() => setIsSettingsOpen(false)}
+            >
+              <X aria-hidden="true" size={18} strokeWidth={2} />
+            </button>
+            <p className="profile-kicker">{t("settings.kicker")}</p>
+            <h2 id="settings-title">{t("settings.title")}</h2>
+
+            <div className="sound-setting">
+              <div className="sound-setting-copy">
+                <span className="sound-setting-icon" aria-hidden="true">
+                  {audioPreferences.enabled ? (
+                    <Volume2 size={22} strokeWidth={2} />
+                  ) : (
+                    <VolumeX size={22} strokeWidth={2} />
+                  )}
+                </span>
+                <span>
+                  <strong>{t("settings.sound")}</strong>
+                  <small>{t("settings.soundDescription")}</small>
+                </span>
+              </div>
+              <label className="sound-switch" data-ui-sound>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={audioPreferences.enabled}
+                  aria-label={t("settings.sound")}
+                  onChange={toggleSound}
+                />
+                <span className="sound-switch-track" aria-hidden="true">
+                  <span />
+                </span>
+              </label>
+            </div>
+
+            <label className="volume-setting">
+              <span>
+                <strong>{t("settings.volume")}</strong>
+                <output>
+                  {Math.round(audioPreferences.volume * 100)}%
+                </output>
+              </span>
+              <input
+                type="range"
+                min="0"
+                max={MAX_AUDIO_VOLUME * 100}
+                step="1"
+                value={Math.round(audioPreferences.volume * 100)}
+                disabled={!audioPreferences.enabled}
+                aria-label={t("settings.volume")}
+                onChange={changeSoundVolume}
+              />
+            </label>
+            <p className="settings-auto-save">{t("settings.autoSave")}</p>
+          </section>
+        </div>
+      )}
+
       <main className="user-shell" aria-label={t("profile.pageLabel")}>
         <section className="profile-sidebar" aria-label={t("profile.userData")}>
           {status === "loading" && (
@@ -1067,20 +1143,6 @@ export default function UserPage() {
                     </button>
                   );
                 })}
-
-                <button
-                  type="button"
-                  className={soundEnabled ? "" : "muted"}
-                  aria-pressed={!soundEnabled}
-                  onClick={toggleSound}
-                >
-                  {soundEnabled ? (
-                    <Volume2 aria-hidden="true" size={18} strokeWidth={2} />
-                  ) : (
-                    <VolumeX aria-hidden="true" size={18} strokeWidth={2} />
-                  )}
-                  <span>{soundEnabled ? t("actions.soundOff") : t("actions.soundOn")}</span>
-                </button>
 
                 <div className="language-switcher" aria-label={t("actions.language")}>
                   <button

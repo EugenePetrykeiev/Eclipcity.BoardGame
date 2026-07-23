@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import {
   endGameTurn,
@@ -14,6 +14,7 @@ import {
   gameItems,
   prisonerPawnImage
 } from "../assets/game/gameAssets.js";
+import { audioManager } from "../services/audioManager.js";
 
 const gamePathPattern =
   /^\/game\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i;
@@ -274,7 +275,8 @@ function PlayerCardBacks({
   compact = false,
   cards = [],
   disabled = false,
-  onCardClick = null
+  onCardClick = null,
+  onCardHover = null
 }) {
   const visibleCards = Math.min(count, 6);
   const openCards = cards.slice(0, visibleCards);
@@ -291,7 +293,9 @@ function PlayerCardBacks({
                 key={`${item.id}-${index}`}
                 className="hand-card-button"
                 disabled={disabled}
+                data-audio-scope="card"
                 onClick={() => onCardClick?.(item)}
+                onPointerEnter={(event) => onCardHover?.(item, event)}
                 title={item.nameUk}
                 style={{
                   "--card-angle": `${offset * 8}deg`,
@@ -331,7 +335,8 @@ function PlayerSeat({
   isSelf = false,
   style = {},
   canAct = false,
-  onCardClick = null
+  onCardClick = null,
+  onCardHover = null
 }) {
   const teamColor = teamColors[player.team_color];
   return (
@@ -354,6 +359,7 @@ function PlayerSeat({
         cards={handCards}
         disabled={isSelf && !canAct}
         onCardClick={isSelf ? onCardClick : null}
+        onCardHover={isSelf ? onCardHover : null}
       />
     </article>
   );
@@ -403,6 +409,11 @@ export default function GamePage() {
   const [isActionPending, setIsActionPending] = useState(false);
   const [isRosterOpen, setIsRosterOpen] = useState(false);
   const [acknowledgedResultKey, setAcknowledgedResultKey] = useState("");
+  const audioGameStateRef = useRef({
+    handCount: null,
+    isMyTurn: false
+  });
+  const yourTurnTimerRef = useRef(null);
   const gameId = useMemo(() => gameIdFromPath(), []);
   const itemMap = useMemo(
     () => new Map(gameItems.map((item) => [item.id, item])),
@@ -483,6 +494,67 @@ export default function GamePage() {
   }, [actionNotice]);
 
   useEffect(() => {
+    if (!game) {
+      return;
+    }
+
+    const currentPlayer = game.players.find(
+      (player) => player.user_id === game.current_user_id
+    );
+    const handCount = currentPlayer?.hand_cards?.length ?? 0;
+    const isMyTurnNow =
+      game.status === "active" &&
+      game.current_turn_user_id === game.current_user_id &&
+      currentPlayer?.status !== "finished";
+    const previousAudioState = audioGameStateRef.current;
+    const cardsWereDrawn =
+      (previousAudioState.handCount === null && handCount > 0) ||
+      (previousAudioState.handCount !== null &&
+        handCount > previousAudioState.handCount);
+    const turnJustStarted = isMyTurnNow && !previousAudioState.isMyTurn;
+
+    audioGameStateRef.current = {
+      handCount,
+      isMyTurn: isMyTurnNow
+    };
+
+    if (!isMyTurnNow && yourTurnTimerRef.current) {
+      window.clearTimeout(yourTurnTimerRef.current);
+      yourTurnTimerRef.current = null;
+    }
+
+    if (cardsWereDrawn) {
+      audioManager.playEffect("drawCard");
+    }
+
+    if (turnJustStarted) {
+      if (yourTurnTimerRef.current) {
+        window.clearTimeout(yourTurnTimerRef.current);
+      }
+      if (cardsWereDrawn) {
+        yourTurnTimerRef.current = window.setTimeout(() => {
+          audioManager.playEffect("yourTurn");
+          yourTurnTimerRef.current = null;
+        }, 700);
+      } else {
+        audioManager.playEffect("yourTurn");
+      }
+    }
+  }, [game]);
+
+  useEffect(() => {
+    return () => {
+      if (yourTurnTimerRef.current) {
+        window.clearTimeout(yourTurnTimerRef.current);
+      }
+      audioGameStateRef.current = {
+        handCount: null,
+        isMyTurn: false
+      };
+    };
+  }, []);
+
+  useEffect(() => {
     function toggleRosterByTab(event) {
       if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) {
         return;
@@ -528,14 +600,24 @@ export default function GamePage() {
       const movement = options.prisonerId
         ? buildMovementPath(previousGame, payload, options.prisonerId)
         : null;
+      const movedPrisoner = options.prisonerId
+        ? didOwnedPrisonerMove(previousGame, payload, options.prisonerId)
+        : false;
+      options.onSuccess?.(payload);
       if (movement) {
         setMovingPrisoner(movement);
         window.setTimeout(() => {
           setGame(payload);
           setMovingPrisoner(null);
+          if (movedPrisoner) {
+            window.requestAnimationFrame(() => audioManager.playEffect("moveUnit"));
+          }
         }, 680);
       } else {
         setGame(payload);
+        if (movedPrisoner) {
+          window.requestAnimationFrame(() => audioManager.playEffect("moveUnit"));
+        }
       }
       setSelectedPrisoner(null);
     } catch (requestError) {
@@ -549,6 +631,7 @@ export default function GamePage() {
   }
 
   async function handleCardClick(item) {
+    audioManager.playEffect("clickCard");
     if (!game || !selectedPrisoner || !canUseActions) {
       setActionNotice({
         id: Date.now(),
@@ -557,15 +640,38 @@ export default function GamePage() {
       return;
     }
 
-    setPlayedCard(item);
-    window.setTimeout(() => setPlayedCard(null), 760);
     await runGameAction(() =>
       playGameCard(game.id, {
         prisoner_id: selectedPrisoner,
         card_id: item.id
       }),
-      { prisonerId: selectedPrisoner }
+      {
+        prisonerId: selectedPrisoner,
+        onSuccess: () => {
+          setPlayedCard(item);
+          audioManager.playEffect("playCard");
+          window.setTimeout(() => setPlayedCard(null), 760);
+        }
+      }
     );
+  }
+
+  function handleCardHover(_item, event) {
+    if (event.pointerType !== "touch") {
+      audioManager.playEffect("selectCard");
+    }
+  }
+
+  function selectPrisoner(prisonerId) {
+    audioManager.playEffect("pickUnit");
+    setSelectedPrisoner(prisonerId);
+  }
+
+  function handleBoardClick(event) {
+    if (event.target.closest(".tunnel-tile, .prisoner-token")) {
+      return;
+    }
+    audioManager.playEffect("clickBoard");
   }
 
   async function handleTileClick(tileIndex) {
@@ -756,6 +862,21 @@ export default function GamePage() {
     };
   }
 
+  function didOwnedPrisonerMove(previousGame, nextGame, prisonerId) {
+    const previousPrisoner = previousGame?.prisoners?.find(
+      (prisoner) => prisoner.id === prisonerId
+    );
+    const nextPrisoner = nextGame?.prisoners?.find(
+      (prisoner) => prisoner.id === prisonerId
+    );
+    return Boolean(
+      previousPrisoner &&
+      nextPrisoner &&
+      previousPrisoner.owner_user_id === previousGame.current_user_id &&
+      previousPrisoner.position !== nextPrisoner.position
+    );
+  }
+
   return (
     <main className="game-page" aria-label={t("gamePage.label")}>
       <header className="game-topbar">
@@ -851,6 +972,7 @@ export default function GamePage() {
               isSelf
               canAct={canUseActions && Boolean(selectedPrisoner)}
               onCardClick={handleCardClick}
+              onCardHover={handleCardHover}
             />
           )}
           {isMyTurn && (
@@ -869,7 +991,7 @@ export default function GamePage() {
             </aside>
           )}
           <div className="game-table-perspective">
-            <div className="game-table">
+            <div className="game-table" onClick={handleBoardClick}>
               <svg
                 className="tunnel-lines"
                 viewBox="0 0 100 100"
@@ -906,6 +1028,7 @@ export default function GamePage() {
                 <button
                   type="button"
                   className="start-return-button"
+                  data-audio-scope="board"
                   aria-label={t("gamePage.returnStart")}
                   disabled={!canUseActions || !selectedPrisoner}
                   onClick={handleStartReturn}
@@ -944,6 +1067,7 @@ export default function GamePage() {
                             selectedPrisoner === startPrisoner.id ? "selected" : ""
                           }`}
                           disabled={!canSelect}
+                          data-audio-scope="unit"
                           style={{
                             "--team-color": teamColors[player.team_color],
                             "--pawn-mask": `url("${prisonerPawnImage}")`,
@@ -953,7 +1077,7 @@ export default function GamePage() {
                           }}
                           title={`${player.nickname}: ${prisonersLeft}`}
                           aria-pressed={selectedPrisoner === startPrisoner.id}
-                          onClick={() => setSelectedPrisoner(startPrisoner.id)}
+                          onClick={() => selectPrisoner(startPrisoner.id)}
                         >
                           <span className="prisoner-token-shape" aria-hidden="true" />
                           <span className="prisoner-count-badge">{prisonersLeft}</span>
@@ -1004,6 +1128,7 @@ export default function GamePage() {
                     type="button"
                     key={`${tile.index}-${tile.item_id}`}
                     className={`tunnel-tile ${hasOccupants ? "occupied" : ""}`}
+                    data-audio-scope="board"
                     style={{ left: `${point.x}%`, top: `${point.y}%` }}
                     title={item?.nameUk || tile.item_id}
                     onClick={() => handleTileClick(tile.index)}
@@ -1039,6 +1164,7 @@ export default function GamePage() {
                         selectedPrisoner === prisoner.id ? "selected" : ""
                       }`}
                       disabled={!canSelect}
+                      data-audio-scope="unit"
                       style={{
                         "--team-color": teamColors[owner.team_color],
                         "--pawn-mask": `url("${prisonerPawnImage}")`,
@@ -1048,7 +1174,7 @@ export default function GamePage() {
                       }}
                       title={`${owner.nickname}: prisoner ${prisoner.index}`}
                       aria-pressed={selectedPrisoner === prisoner.id}
-                      onClick={() => setSelectedPrisoner(prisoner.id)}
+                      onClick={() => selectPrisoner(prisoner.id)}
                     >
                       <span className="prisoner-token-shape" aria-hidden="true" />
                     </button>

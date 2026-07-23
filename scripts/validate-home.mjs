@@ -24,7 +24,7 @@ page.on("pageerror", (error) => {
   consoleErrors.push(error.message);
 });
 
-await page.route("http://127.0.0.1:8000/auth/session", async (route) => {
+await page.route("**/auth/session", async (route) => {
   await route.fulfill({
     status: 200,
     contentType: "application/json",
