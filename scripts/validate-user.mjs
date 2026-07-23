@@ -25,7 +25,7 @@ page.on("pageerror", (error) => {
   consoleErrors.push(error.message);
 });
 
-await page.route("http://127.0.0.1:8000/users/**", async (route) => {
+await page.route("**/users/**", async (route) => {
   await route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -71,7 +71,7 @@ const lobbyPayload = {
   path: "/lobby/R7K2Q"
 };
 
-await page.route("http://127.0.0.1:8000/lobbies", async (route) => {
+await page.route("**/lobbies", async (route) => {
   if (route.request().method() !== "POST") {
     await route.fallback();
     return;
@@ -84,7 +84,7 @@ await page.route("http://127.0.0.1:8000/lobbies", async (route) => {
   });
 });
 
-await page.route("http://127.0.0.1:8000/lobbies/R7K2Q", async (route) => {
+await page.route("**/lobbies/R7K2Q", async (route) => {
   await route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -92,7 +92,7 @@ await page.route("http://127.0.0.1:8000/lobbies/R7K2Q", async (route) => {
   });
 });
 
-await page.route("http://127.0.0.1:8000/lobbies/R7K2Q/leave", async (route) => {
+await page.route("**/lobbies/R7K2Q/leave", async (route) => {
   await route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -100,6 +100,14 @@ await page.route("http://127.0.0.1:8000/lobbies/R7K2Q/leave", async (route) => {
       message: "Lobby left.",
       next: `/user/${userId}`
     })
+  });
+});
+
+await page.route("**/games/active", async (route) => {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ game: null })
   });
 });
 
@@ -148,9 +156,32 @@ const lobbyCodeVisible = await page
   .isVisible();
 
 await page.getByRole("button", { name: "Налаштування" }).click();
-const minimizedLobbyVisible = await page.getByLabel("Згорнуте лоббі").isVisible();
+const settingsDialog = page.getByRole("dialog", { name: "Налаштування" });
+const settingsVisible = await settingsDialog.isVisible();
+const soundSwitch = settingsDialog.getByRole("switch", { name: "Звуки" });
+const soundSwitchVisible = await soundSwitch.isVisible();
+await soundSwitch.click();
+const soundToastVisible = await page.getByText("Звуки вимкнено.").isVisible();
+await soundSwitch.click();
+await settingsDialog.getByRole("slider", { name: "Гучність" }).fill("24");
+const audioCookiesStored = await page.evaluate(() => {
+  const cookies = new Map(
+    document.cookie.split(";").map((cookie) => {
+      const [name, value] = cookie.trim().split("=");
+      return [name, value];
+    })
+  );
+  return (
+    cookies.get("eclipcity_sound_enabled") === "true" &&
+    cookies.get("eclipcity_sound_volume") === "0.24"
+  );
+});
+await page.screenshot({
+  fullPage: true,
+  path: "/private/tmp/eclipcity-settings-mobile.png"
+});
+await settingsDialog.getByRole("button", { name: "Закрити" }).click();
 
-await page.getByRole("button", { name: "Розгорнути лоббі" }).click();
 await page.getByRole("button", { name: "Покинути лоббі" }).click();
 await page.getByText("Тут буде персональний профіль гравця").waitFor({
   state: "visible"
@@ -163,8 +194,6 @@ const startGameResetVisible = await page
   .getByRole("button", { name: "Почати гру" })
   .isVisible();
 
-await page.getByRole("button", { name: /Вимкнути звуки/ }).click();
-const soundToastVisible = await page.getByText("Звуки вимкнено.").isVisible();
 await page.getByRole("button", { name: "EN" }).click();
 const englishStartVisible = await page
   .getByRole("button", { name: "Start game" })
@@ -177,7 +206,9 @@ const requiredChecks = {
   lobbyStartVisible,
   startGameLabelVisible,
   lobbyCodeVisible,
-  minimizedLobbyVisible,
+  settingsVisible,
+  soundSwitchVisible,
+  audioCookiesStored,
   profileMockVisible,
   startGameResetVisible,
   soundToastVisible,
@@ -211,7 +242,9 @@ console.log(
       lobbyStartVisible,
       startGameLabelVisible,
       lobbyCodeVisible,
-      minimizedLobbyVisible,
+      settingsVisible,
+      soundSwitchVisible,
+      audioCookiesStored,
       profileMockVisible,
       startGameResetVisible,
       soundToastVisible,
