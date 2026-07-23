@@ -13,15 +13,10 @@ flowchart LR
   frontend -->|8000, private IP| backend[Backend EC2\npublic subnet, inbound denied]
   backend -->|outbound only| igw[Internet Gateway]
   igw --> aws[AWS APIs / OAuth / SES / ECR]
-  github[GitHub Actions OIDC] -->|push immutable images| ecr[ECR]
-  github -->|role-scoped command| ssm
-  ecr --> frontend
-  ecr --> backend
   backend -->|5432, VPC peering| db[Existing PostgreSQL\ndefault VPC]
   budget[AWS Budget] --> email[Cost alerts]
   ssm[AWS Systems Manager] --> frontend
   ssm --> backend
-  ssm --> db
 ```
 
 - Окремий VPC `10.20.0.0/16` і public/private subnet-и у двох Availability Zones.
@@ -31,8 +26,7 @@ flowchart LR
   security group не має жодного public ingress. Порт `8000/tcp` доступний лише
   від frontend security group, а frontend використовує private backend IP.
 - `22/tcp` не відкривається. Адміністративний доступ виконується через SSM Session
-  Manager. Terraform також закріплює SSM managed policy на наявній IAM role DB
-  EC2, щоб TLS/HBA обслуговувалися аудитованим runbook без SSH.
+  Manager.
 - NAT Gateway за замовчуванням вимкнений. Backend виходить до AWS API, Google,
   SMTP/SES та registry через Internet Gateway; inbound Internet traffic лишається
   заблокованим. Трафік до БД іде більш специфічним private peering route.
@@ -41,11 +35,6 @@ flowchart LR
 - Private Route 53 hostname
   `postgres.internal.dev.eclipcity.digitee.space` приховує нестабільні EC2 IP від
   конфігурації застосунку.
-- Private Route 53 hostname
-  `backend.internal.dev.eclipcity.digitee.space` стабільно направляє nginx на
-  backend private IP.
-- GitHub Actions отримує короткоживучі AWS credentials через OIDC, збирає ARM64
-  images у ECR та запускає окремі backend/frontend SSM deployments без SSH.
 - Обидва application EC2 за замовчуванням `t4g.micro`. Root EBS volumes — `gp3`,
   зашифровані безплатним AWS-managed `alias/aws/ebs`; EC2 вимагають IMDSv2.
 - Увімкнені VPC Flow Logs з retention 30 днів.
@@ -68,10 +57,9 @@ infrastructure-tf/
 ├── dev/              # dev root module та environment-specific modules
 │   ├── dns/          # зовнішній DNS manifest і перевірка
 │   ├── budget/       # account-level monthly cost budget і email alerts
-│   ├── cicd/         # ECR, GitHub OIDC roles, SSM deployment documents
 │   ├── ec2/          # frontend/backend instances та Elastic IP
 │   ├── iam/          # SSM, ECR read-only, least-privilege secret access
-│   ├── network/      # security groups, DB peering/routes і PostgreSQL TLS runbook
+│   ├── network/      # security groups, DB peering і routes
 │   ├── ses/          # SES identity, DKIM, MAIL FROM
 │   ├── s3/           # пояснення щодо application buckets
 │   └── vpc/          # VPC, subnets, routes, optional NAT, flow logs
@@ -225,10 +213,8 @@ terraform -chdir=infrastructure-tf/dev apply dev.tfplan
 ./infrastructure-tf/dev/dns/check-dns.sh
 ```
 
-Перший автоматичний deploy запускати лише після успішної DNS-перевірки: його
-frontend stage виконає Certbot HTTP-01 bootstrap. Сертифікат і private key
-зберігаються у Docker volume на frontend EC2 та не потрапляють до Git або
-Terraform state.
+Certbot запускати лише після успішної DNS-перевірки. Сертифікат і private key не
+мають потрапляти до Git або Terraform state.
 
 SES identity і DNS verification не створюють SMTP credentials і не переводять
 AWS account із SES sandbox у production access. SMTP credentials мають уже бути в
@@ -237,7 +223,7 @@ production-access request у цьому ж регіоні.
 
 ## 5. Приватне підключення до наявної PostgreSQL
 
-Terraform **не створює PostgreSQL і не змінює дані БД**. Він додає лише:
+Terraform **не створює, не перезапускає і не змінює дані БД**. Він додає лише:
 
 - peering між dev VPC і `vpc-0b4438217b4166a48`;
 - route до `172.31.0.0/16` у dev public route table, де працює backend;
@@ -245,13 +231,6 @@ Terraform **не створює PostgreSQL і не змінює дані БД**.
 - ingress `5432/tcp` у `sg-09b030b01fdfd4f39` лише від backend SG;
 - private Route 53 A record на поточний private IP DB instance
   `i-02bf5a28818374a1c`.
-- `AmazonSSMManagedInstanceCore` до наявної role
-  `postgres-t4g-micro-ec2-role`; сама role та DB instance не імпортуються під
-  повне керування Terraform.
-
-DB security group є зовнішнім ресурсом, тому Terraform керує лише власним
-backend-SG rule. Legacy CIDR `95.91.245.200/32` видалено окремо; після змін у
-`5432/tcp` не повинно бути жодного `CidrIpv4`, лише reference на backend SG.
 
 Після apply перевірити hostname:
 
@@ -274,53 +253,6 @@ terraform -chdir=infrastructure-tf/dev output -raw database_private_hostname
 Решта credentials лишаються без змін. До оновлення secret backend не зможе
 використати приватний маршрут.
 
-Окремий operator-runbook керує конфігурацією PostgreSQL через SSM. Спочатку
-перевірити план без змін, потім застосувати:
-
-```bash
-./infrastructure-tf/dev/network/configure-postgres-tls.sh plan
-./infrastructure-tf/dev/network/configure-postgres-tls.sh apply
-```
-
-`apply` робить timestamped backup у
-`/var/lib/pgsql/data/eclipcity-config-backups/`, створює server key/certificate,
-вмикає TLS 1.2+, додає тільки
-`hostssl userdb giant_adm 10.20.1.0/24 scram-sha-256`, перезапускає PostgreSQL і
-видаляє exact legacy public HBA rule, а потім перевіряє TLS handshake та
-certificate fingerprint. Будь-яка помилка до завершення запускає автоматичне
-відновлення backup і повторний restart.
-Повторний `apply` зберігає чинний certificate, доки до expiry більше 30 днів, і
-автоматично ротує його в останні 30 днів строку дії.
-
-Після успішної серверної перевірки додати відповідний runtime параметр у secret,
-не друкуючи інші значення:
-
-```bash
-./infrastructure-tf/dev/network/sync-postgres-ssl-secret.sh plan
-./infrastructure-tf/dev/network/sync-postgres-ssl-secret.sh apply
-```
-
-Скрипт створює нову версію secret з `POSTGRES_SSL_MODE=require`; решта ключів і
-можливість повернути попередню версію Secrets Manager зберігаються.
-
-У dev використовується self-signed server certificate. Режим `require` шифрує
-канал, але не перевіряє ідентичність сервера; приватні peering route, SG та HBA є
-додатковою межею доступу. Для prod слід використати сертифікат від приватного CA,
-доставити CA bundle backend-контейнеру й перейти на `verify-full`.
-
-Якщо прикладні таблиці існували до Alembic, не можна робити blind stamp.
-Read-only audit порівнює живу схему з SQLAlchemy metadata, показує тільки table
-row counts/revision/TLS і відмовляється працювати при schema drift:
-
-```bash
-./cicd/scripts/run-database-baseline-audit.sh audit
-./cicd/scripts/run-database-baseline-audit.sh stamp
-```
-
-`stamp` спочатку повторює той самий audit і лише після чистого результату
-записує revision `20260717_0001`; прикладні таблиці й дані не змінюються. Команда
-ідемпотентна, якщо revision уже поточна.
-
 ## 6. Доступ до EC2
 
 ```bash
@@ -330,23 +262,6 @@ terraform -chdir=infrastructure-tf/dev output -raw backend_ssm_command
 
 Виконайте виведену команду. SSH key pairs і inbound port 22 не потрібні.
 
-## 7. Автоматична доставка dev
-
-Перший Terraform apply створює ECR repositories, GitHub OIDC provider, окремі
-build/backend/frontend roles, SSM documents і pointers на instance IDs. Після
-цього push application changes у `main` автоматично:
-
-1. виконує frontend/backend tests;
-2. збирає ARM64 images і публікує immutable digest-и в ECR;
-3. запускає migration та backend deployment на backend EC2;
-4. лише після healthy backend оновлює frontend/nginx/certbot на frontend EC2;
-5. за потреби випускає сертифікат і вмикає HTTPS;
-6. запускає public HTTPS smoke checks.
-
-У GitHub потрібен Environment `dev` без required reviewers і з дозволом deploy
-лише з `main`. AWS keys у GitHub Secrets не потрібні. Повний runbook і rollback
-policy: `cicd/README.md`.
-
 ## Вартість і наступні кроки
 
 Основні постійні витрати dev після оптимізації: три EC2 разом із наявною БД,
@@ -355,5 +270,9 @@ Gateway і customer-managed EBS KMS key більше не потрібні. Budg
 контролює account-wide витрати, оскільки tag-based cost allocation може з'являтися
 із затримкою.
 
-Certbot bootstrap і renewal входять до dev pipeline. До наступного етапу
-залишено alarms/backups та повна HA-схема для prod.
+До наступного етапу залишено:
+
+- ECR repositories і GitHub Actions/OIDC deployment roles;
+- deployment Compose для окремих frontend/backend hosts;
+- Certbot renewal runbook;
+- alarms/backups та повна HA-схема для prod.

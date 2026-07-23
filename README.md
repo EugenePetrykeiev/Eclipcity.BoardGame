@@ -55,10 +55,6 @@ PostgreSQL, and a one-shot Alembic migration service. See
 `docs/containerization.md` for OAuth, SMTP/SES, TLS templating, AWS Secrets
 Manager, and existing-database baseline instructions.
 
-Automatic ARM64 image delivery to the separate dev EC2 hosts is described in
-`cicd/README.md`. GitHub Actions uses AWS OIDC and SSM; no SSH port or long-lived
-AWS access keys are required.
-
 For a production build and home-page smoke test:
 
 ```bash
