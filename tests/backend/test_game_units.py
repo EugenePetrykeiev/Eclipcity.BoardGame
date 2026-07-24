@@ -1,6 +1,8 @@
 import uuid
 import unittest
 from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from src.backend.game_repository import (
     DISCONNECT_GRACE_SECONDS,
@@ -8,6 +10,7 @@ from src.backend.game_repository import (
     allowed_route_tile_count,
     disconnect_deadline,
     game_path,
+    move_prisoner_back_action,
     score_eligible_players,
     update_game_completion,
     utc_now,
@@ -307,6 +310,28 @@ class GameTurnRulesTest(unittest.TestCase):
             3,
         )
 
+    def test_nearest_forward_tile_uses_index_instead_of_route_list_order(self):
+        route_tiles = [
+            {"index": 29, "item_id": "crypto-card"},
+            {"index": 5, "item_id": "crypto-card"},
+            {"index": 12, "item_id": "memory-drive"},
+        ]
+        positions = {
+            "p1": [
+                {
+                    "id": "p1:p1",
+                    "owner_user_id": "p1",
+                    "index": 1,
+                    "position": "start",
+                }
+            ],
+        }
+
+        self.assertEqual(
+            nearest_forward_tile(route_tiles, positions, "start", "crypto-card"),
+            5,
+        )
+
     def test_nearest_backward_tile_requires_one_or_two_occupants(self):
         positions = {
             "p1": [{"id": "p1:p1", "owner_user_id": "p1", "index": 1, "position": 8}],
@@ -319,6 +344,125 @@ class GameTurnRulesTest(unittest.TestCase):
         }
 
         self.assertEqual(nearest_occupied_backward_tile(positions, 8), 5)
+
+
+class MovePrisonerBackActionTest(unittest.IsolatedAsyncioTestCase):
+    def create_game(self, target_occupant_count):
+        game_id = uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
+        player_id = uuid.UUID("223e4567-e89b-12d3-a456-426614174111")
+        opponent_id = uuid.UUID("323e4567-e89b-12d3-a456-426614174222")
+        player_key = str(player_id)
+        opponent_key = str(opponent_id)
+        initial_hand = [
+            "boost-shoes",
+            "power-battery",
+            "screen-terminal",
+            "stun-pistol",
+            "whiskey-bottle",
+            "memory-drive",
+        ]
+        drawn_cards = ["crypto-card", "tunnel-map"]
+        moving_prisoner = {
+            "id": f"{player_key}:p1",
+            "owner_user_id": player_key,
+            "index": 1,
+            "position": 10,
+        }
+        target_prisoners = [
+            {
+                "id": f"{opponent_key}:p{index + 1}",
+                "owner_user_id": opponent_key,
+                "index": index + 1,
+                "position": 5,
+            }
+            for index in range(target_occupant_count)
+        ]
+        player = GamePlayer(
+            game_id=game_id,
+            user_id=player_id,
+            nickname="runner",
+            team_color="green",
+            is_host=False,
+            card_count=len(initial_hand),
+            prisoners_total=7,
+            escaped_prisoners=0,
+            finish_order=None,
+            turn_order=1,
+            status="connected",
+            can_rejoin=True,
+            last_seen_at=utc_now(),
+        )
+        opponent = GamePlayer(
+            game_id=game_id,
+            user_id=opponent_id,
+            nickname="blocker",
+            team_color="purple",
+            is_host=False,
+            card_count=0,
+            prisoners_total=7,
+            escaped_prisoners=0,
+            finish_order=None,
+            turn_order=2,
+            status="connected",
+            can_rejoin=True,
+            last_seen_at=utc_now(),
+        )
+        game = GameSession(
+            id=game_id,
+            lobby_id=uuid.UUID("423e4567-e89b-12d3-a456-426614174333"),
+            status="active",
+            route_tiles=[],
+            hands={player_key: initial_hand, opponent_key: []},
+            draw_pile=drawn_cards + ["neural-implant"],
+            prisoner_positions={
+                player_key: [moving_prisoner],
+                opponent_key: target_prisoners,
+            },
+            current_turn_order=1,
+            actions_taken=0,
+            actions_per_turn=3,
+        )
+        game.players = [player, opponent]
+        game.events = []
+        return game, SimpleNamespace(id=player_id), moving_prisoner, initial_hand, drawn_cards
+
+    async def assert_backward_move_draws_cards(self, target_occupant_count):
+        game, user, moving_prisoner, initial_hand, drawn_cards = self.create_game(
+            target_occupant_count
+        )
+        db = AsyncMock()
+
+        with patch(
+            "src.backend.game_repository.access_game",
+            new=AsyncMock(return_value=game),
+        ):
+            result = await move_prisoner_back_action(
+                db,
+                game.id,
+                user,
+                moving_prisoner["id"],
+                5,
+            )
+
+        player_key = str(user.id)
+        self.assertIs(result, game)
+        self.assertEqual(
+            game.hands[player_key],
+            initial_hand + drawn_cards[:target_occupant_count],
+        )
+        self.assertEqual(
+            game.draw_pile,
+            drawn_cards[target_occupant_count:] + ["neural-implant"],
+        )
+        self.assertEqual(game.players[0].card_count, 6 + target_occupant_count)
+        self.assertEqual(game.prisoner_positions[player_key][0]["position"], 5)
+        db.flush.assert_awaited_once()
+
+    async def test_backward_move_to_one_prisoner_draws_one_card(self):
+        await self.assert_backward_move_draws_cards(1)
+
+    async def test_backward_move_to_two_prisoners_draws_two_cards(self):
+        await self.assert_backward_move_draws_cards(2)
 
 
 if __name__ == "__main__":

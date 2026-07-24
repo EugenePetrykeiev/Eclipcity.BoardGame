@@ -245,6 +245,7 @@ def nearest_forward_tile(
     item_id: str,
 ) -> int | str:
     current_index = 0 if from_position == "start" else int(from_position)
+    available_indexes: list[int] = []
     for tile in route_tiles:
         tile_index = int(tile["index"])
         if tile_index <= current_index:
@@ -252,8 +253,10 @@ def nearest_forward_tile(
         if tile.get("item_id") != item_id:
             continue
         if not tile_occupants(prisoner_positions, tile_index):
-            return tile_index
-    return "exit"
+            available_indexes.append(tile_index)
+    if not available_indexes:
+        return "exit"
+    return min(available_indexes)
 
 
 def nearest_occupied_backward_tile(

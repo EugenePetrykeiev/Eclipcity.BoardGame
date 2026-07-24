@@ -161,11 +161,16 @@
 
 .game-table-perspective {
   container-type: size;
+  position: relative;
   display: grid;
   width: 100%;
   height: min(900px, calc(100dvh - 20px));
   min-height: 0;
   place-items: center;
+}
+
+.game-table-perspective:has(.tunnel-tile:hover, .tunnel-tile:focus-visible) {
+  z-index: 300;
 }
 
 .game-table {
@@ -325,7 +330,7 @@
   position: absolute;
   top: calc(100% + 9px);
   left: 50%;
-  z-index: 90;
+  z-index: 1000;
   display: grid;
   width: min(230px, 52vw);
   gap: 5px;
@@ -758,6 +763,7 @@
 }
 
 .table-player-seat.self-seat {
+  z-index: 300;
   gap: 2px;
   border-color: transparent;
   background: transparent;
@@ -850,7 +856,7 @@
     rotate(var(--card-angle))
     translateY(clamp(-28px, -4.2vh, -18px))
     scale(1.06);
-  z-index: 20 !important;
+  z-index: 1000 !important;
 }
 
 .hand-card-button[aria-disabled="true"] {

@@ -18,6 +18,7 @@ import { audioManager } from "../services/audioManager.js";
 
 const gamePathPattern =
   /^\/game\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i;
+const MAX_VISIBLE_HAND_CARDS = 10;
 
 const teamColors = {
   green: "#B6FF00",
@@ -371,8 +372,9 @@ function PlayerCardBacks({
   onCardLeave = null,
   language = "uk"
 }) {
-  const visibleCards = Math.min(count, 6);
+  const visibleCards = Math.min(count, MAX_VISIBLE_HAND_CARDS);
   const openCards = cards.slice(0, visibleCards);
+  const cardAngleStep = Math.max(4, 8 - Math.max(0, openCards.length - 6));
 
   if (openCards.length > 0) {
     return (
@@ -392,7 +394,7 @@ function PlayerCardBacks({
                 onPointerEnter={(event) => onCardHover?.(item, event)}
                 onPointerLeave={() => onCardLeave?.(item)}
                 style={{
-                  "--card-angle": `${offset * 8}deg`,
+                  "--card-angle": `${offset * cardAngleStep}deg`,
                   "--card-arc": `${Math.abs(offset) * 5}px`,
                   zIndex: index + 1
                 }}

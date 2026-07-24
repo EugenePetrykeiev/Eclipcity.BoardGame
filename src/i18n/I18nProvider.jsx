@@ -36,6 +36,7 @@ const translations = {
     "colors.pink": "Рожевий",
     "colors.turquoise": "Бірюзовий",
     "actions.startGame": "Почати гру",
+    "actions.howToPlay": "Як грати",
     "actions.settings": "Налаштування",
     "actions.soundOff": "Вимкнути звуки",
     "actions.soundOn": "Увімкнути звуки",
@@ -55,6 +56,42 @@ const translations = {
     "settings.logout": "Вийти з акаунту",
     "settings.loggingOut": "Вихід...",
     "settings.logoutError": "Не вдалося вийти з акаунту.",
+    "rules.kicker": "Escape protocol",
+    "rules.title": "Як грати",
+    "rules.intro":
+      "Проведи свою команду крізь тунель, керуючи картами, позиціями та моментом для відступу.",
+    "rules.quickFacts": "Короткі правила гри",
+    "rules.factTiles": "тайлів маршруту",
+    "rules.factCards": "карт на старті",
+    "rules.factPrisoners": "в’язнів у команді",
+    "rules.factActions": "дії за хід",
+    "rules.turnTitle": "Структура ходу",
+    "rules.turnText":
+      "За хід можна виконати до 3 дій у будь-якій комбінації або завершити хід раніше.",
+    "rules.turnPath": "Послідовність однієї дії",
+    "rules.selectPrisoner": "Обери в’язня",
+    "rules.chooseAction": "Карта або відступ",
+    "rules.completeAction": "Онови позицію",
+    "rules.forwardTitle": "Рухайся вперед",
+    "rules.forwardText":
+      "Обери в’язня та розіграй карту. Він переходить на найближчий вільний тайл попереду з таким самим предметом.",
+    "rules.forwardExit":
+      "Якщо відповідного вільного тайла більше немає — в’язень одразу виходить.",
+    "rules.backwardTitle": "Відступай за картами",
+    "rules.backwardText":
+      "Перемісти в’язня на найближчий зайнятий тайл позаду, який може прийняти ще одного в’язня.",
+    "rules.drawOne": "в’язень → візьми 1 карту",
+    "rules.drawTwo": "в’язні → візьми 2 карти",
+    "rules.tileFull": "в’язні → тайл повний, пропусти",
+    "rules.startTitle": "Повернення на старт",
+    "rules.startText":
+      "Якщо позаду немає доступного зайнятого тайла, можна повернутися на зайнятий старт і взяти 1 карту.",
+    "rules.victoryTitle": "Дістанься виходу",
+    "rules.victoryText":
+      "Вихід не має ліміту. Перший гравець, який виведе всіх 7 своїх в’язнів, перемагає.",
+    "rules.tipTitle": "Тактична порада",
+    "rules.tipText":
+      "Просування витрачає карти, а відступ повертає ресурси. Плануй кілька ходів наперед і залишай собі шлях для добору.",
     "start.created": "Лоббі створено",
     "start.joined": "Приєднався до лоббі",
     "start.local": "Створення локальної гри",
@@ -217,6 +254,7 @@ const translations = {
     "colors.pink": "Pink",
     "colors.turquoise": "Turquoise",
     "actions.startGame": "Start game",
+    "actions.howToPlay": "How to play",
     "actions.settings": "Settings",
     "actions.soundOff": "Mute sound",
     "actions.soundOn": "Enable sound",
@@ -236,6 +274,42 @@ const translations = {
     "settings.logout": "Log out",
     "settings.loggingOut": "Logging out...",
     "settings.logoutError": "Could not log out.",
+    "rules.kicker": "Escape protocol",
+    "rules.title": "How to play",
+    "rules.intro":
+      "Lead your team through the tunnel by managing cards, positions, and the right moment to retreat.",
+    "rules.quickFacts": "Quick game rules",
+    "rules.factTiles": "route tiles",
+    "rules.factCards": "starting cards",
+    "rules.factPrisoners": "team prisoners",
+    "rules.factActions": "actions per turn",
+    "rules.turnTitle": "Turn structure",
+    "rules.turnText":
+      "Take up to 3 actions in any combination, or end your turn early.",
+    "rules.turnPath": "Sequence of one action",
+    "rules.selectPrisoner": "Select a prisoner",
+    "rules.chooseAction": "Card or retreat",
+    "rules.completeAction": "Update position",
+    "rules.forwardTitle": "Move forward",
+    "rules.forwardText":
+      "Select a prisoner and play a card. They move to the nearest free tile ahead with the matching item.",
+    "rules.forwardExit":
+      "If no matching free tile remains, the prisoner moves directly to the exit.",
+    "rules.backwardTitle": "Retreat for cards",
+    "rules.backwardText":
+      "Move a prisoner to the nearest occupied tile behind that can accept one more prisoner.",
+    "rules.drawOne": "prisoner → draw 1 card",
+    "rules.drawTwo": "prisoners → draw 2 cards",
+    "rules.tileFull": "prisoners → tile full, skip it",
+    "rules.startTitle": "Return to start",
+    "rules.startText":
+      "If there is no available occupied tile behind, return to an occupied start and draw 1 card.",
+    "rules.victoryTitle": "Reach the exit",
+    "rules.victoryText":
+      "The exit has no limit. The first player to move all 7 prisoners out wins.",
+    "rules.tipTitle": "Tactical tip",
+    "rules.tipText":
+      "Moving forward spends cards; retreating restores resources. Plan several moves ahead and preserve a route for drawing.",
     "start.created": "Lobby created",
     "start.joined": "Joined lobby",
     "start.local": "Creating local game",

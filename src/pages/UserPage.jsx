@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  BookOpen,
+  CircleDot,
+  Flag,
   LogOut,
   Maximize2,
+  MoveRight,
+  RotateCcw,
   Settings,
+  Trophy,
+  Users,
   Volume2,
   VolumeX,
   X
@@ -29,6 +36,12 @@ import {
   MAX_MUSIC_VOLUME
 } from "../services/audioManager.js";
 import { useI18n } from "../i18n/I18nProvider.jsx";
+import {
+  MAX_VOLUME_PERCENT,
+  MIN_VOLUME_PERCENT,
+  percentToVolume,
+  volumeToPercent
+} from "../utils/audioVolume.js";
 import { defaultLobbyName, validateLobbyName } from "../utils/lobbyName.js";
 import defaultUserAvatar from "../assets/default-user-avatar.svg";
 import packageMetadata from "../../package.json";
@@ -40,6 +53,10 @@ const lobbyPathPattern = /^\/lobby\/([a-z0-9]{5})\/?$/i;
 const actions = [
   {
     id: "start-game"
+  },
+  {
+    id: "how-to-play",
+    icon: BookOpen
   },
   {
     id: "settings",
@@ -125,6 +142,132 @@ function ScrollPanel({ children, className = "", ...props }) {
   );
 }
 
+function HowToPlayModal({ onClose, t }) {
+  const facts = [
+    { value: "45", label: t("rules.factTiles") },
+    { value: "6", label: t("rules.factCards") },
+    { value: "7", label: t("rules.factPrisoners") },
+    { value: "0–3", label: t("rules.factActions") }
+  ];
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="confirm-modal how-to-modal scroll-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="how-to-title"
+      >
+        <button
+          type="button"
+          className="modal-close"
+          aria-label={t("common.close")}
+          onClick={onClose}
+        >
+          <X aria-hidden="true" size={18} strokeWidth={2} />
+        </button>
+
+        <header className="rules-hero">
+          <span className="rules-hero-icon" aria-hidden="true">
+            <BookOpen size={30} strokeWidth={1.8} />
+          </span>
+          <div>
+            <p className="profile-kicker">{t("rules.kicker")}</p>
+            <h2 id="how-to-title">{t("rules.title")}</h2>
+            <p>{t("rules.intro")}</p>
+          </div>
+        </header>
+
+        <div className="rules-facts" aria-label={t("rules.quickFacts")}>
+          {facts.map((fact) => (
+            <div key={fact.label}>
+              <strong>{fact.value}</strong>
+              <span>{fact.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <section className="rules-turn-flow" aria-labelledby="rules-turn-title">
+          <div className="rules-section-heading">
+            <CircleDot aria-hidden="true" size={21} />
+            <h3 id="rules-turn-title">{t("rules.turnTitle")}</h3>
+          </div>
+          <p>{t("rules.turnText")}</p>
+          <div className="rules-action-path" aria-label={t("rules.turnPath")}>
+            <span>{t("rules.selectPrisoner")}</span>
+            <MoveRight aria-hidden="true" size={18} />
+            <span>{t("rules.chooseAction")}</span>
+            <MoveRight aria-hidden="true" size={18} />
+            <span>{t("rules.completeAction")}</span>
+          </div>
+        </section>
+
+        <div className="rules-card-grid">
+          <article className="rule-card forward">
+            <span className="rule-card-icon" aria-hidden="true">
+              <MoveRight size={26} />
+            </span>
+            <div>
+              <p className="rule-number">01</p>
+              <h3>{t("rules.forwardTitle")}</h3>
+              <p>{t("rules.forwardText")}</p>
+              <strong>{t("rules.forwardExit")}</strong>
+            </div>
+          </article>
+
+          <article className="rule-card backward">
+            <span className="rule-card-icon" aria-hidden="true">
+              <RotateCcw size={26} />
+            </span>
+            <div>
+              <p className="rule-number">02</p>
+              <h3>{t("rules.backwardTitle")}</h3>
+              <p>{t("rules.backwardText")}</p>
+            </div>
+            <div className="draw-rules">
+              <span><i>1</i>{t("rules.drawOne")}</span>
+              <span><i>2</i>{t("rules.drawTwo")}</span>
+              <span className="blocked"><i>3</i>{t("rules.tileFull")}</span>
+            </div>
+          </article>
+
+          <article className="rule-card start">
+            <span className="rule-card-icon" aria-hidden="true">
+              <Users size={26} />
+            </span>
+            <div>
+              <p className="rule-number">03</p>
+              <h3>{t("rules.startTitle")}</h3>
+              <p>{t("rules.startText")}</p>
+            </div>
+          </article>
+
+          <article className="rule-card victory">
+            <span className="rule-card-icon" aria-hidden="true">
+              <Trophy size={26} />
+            </span>
+            <div>
+              <p className="rule-number">04</p>
+              <h3>{t("rules.victoryTitle")}</h3>
+              <p>{t("rules.victoryText")}</p>
+            </div>
+            <div className="victory-route" aria-hidden="true">
+              <Users size={19} />
+              <span />
+              <Flag size={21} />
+            </div>
+          </article>
+        </div>
+
+        <aside className="rules-tip">
+          <strong>{t("rules.tipTitle")}</strong>
+          <p>{t("rules.tipText")}</p>
+        </aside>
+      </section>
+    </div>
+  );
+}
+
 export default function UserPage() {
   const { language, setLanguage, t } = useI18n();
   const [user, setUser] = useState(null);
@@ -135,6 +278,7 @@ export default function UserPage() {
     audioManager.getPreferences()
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activePanel, setActivePanel] = useState(null);
   const [lobbyForm, setLobbyForm] = useState({
@@ -335,11 +479,15 @@ export default function UserPage() {
   }
 
   function changeMusicVolume(event) {
-    audioManager.setMusicVolume(Number(event.target.value) / 100);
+    audioManager.setMusicVolume(
+      percentToVolume(event.target.value, MAX_MUSIC_VOLUME)
+    );
   }
 
   function changeEffectsVolume(event) {
-    audioManager.setEffectsVolume(Number(event.target.value) / 100);
+    audioManager.setEffectsVolume(
+      percentToVolume(event.target.value, MAX_EFFECTS_VOLUME)
+    );
   }
 
   async function logout() {
@@ -407,6 +555,11 @@ export default function UserPage() {
 
     if (action.id === "settings") {
       setIsSettingsOpen(true);
+      return;
+    }
+
+    if (action.id === "how-to-play") {
+      setIsHowToPlayOpen(true);
       return;
     }
 
@@ -1141,15 +1294,21 @@ export default function UserPage() {
               <span>
                 <strong>{t("settings.musicVolume")}</strong>
                 <output>
-                  {Math.round(audioPreferences.musicVolume * 100)}%
+                  {volumeToPercent(
+                    audioPreferences.musicVolume,
+                    MAX_MUSIC_VOLUME
+                  )}%
                 </output>
               </span>
               <input
                 type="range"
-                min="0"
-                max={MAX_MUSIC_VOLUME * 100}
+                min={MIN_VOLUME_PERCENT}
+                max={MAX_VOLUME_PERCENT}
                 step="1"
-                value={Math.round(audioPreferences.musicVolume * 100)}
+                value={volumeToPercent(
+                  audioPreferences.musicVolume,
+                  MAX_MUSIC_VOLUME
+                )}
                 disabled={!audioPreferences.enabled}
                 aria-label={t("settings.musicVolume")}
                 onChange={changeMusicVolume}
@@ -1160,15 +1319,21 @@ export default function UserPage() {
               <span>
                 <strong>{t("settings.effectsVolume")}</strong>
                 <output>
-                  {Math.round(audioPreferences.effectsVolume * 100)}%
+                  {volumeToPercent(
+                    audioPreferences.effectsVolume,
+                    MAX_EFFECTS_VOLUME
+                  )}%
                 </output>
               </span>
               <input
                 type="range"
-                min="0"
-                max={MAX_EFFECTS_VOLUME * 100}
+                min={MIN_VOLUME_PERCENT}
+                max={MAX_VOLUME_PERCENT}
                 step="1"
-                value={Math.round(audioPreferences.effectsVolume * 100)}
+                value={volumeToPercent(
+                  audioPreferences.effectsVolume,
+                  MAX_EFFECTS_VOLUME
+                )}
                 disabled={!audioPreferences.enabled}
                 aria-label={t("settings.effectsVolume")}
                 onChange={changeEffectsVolume}
@@ -1190,6 +1355,10 @@ export default function UserPage() {
             </button>
           </section>
         </div>
+      )}
+
+      {isHowToPlayOpen && (
+        <HowToPlayModal onClose={() => setIsHowToPlayOpen(false)} t={t} />
       )}
 
       <main className="user-shell" aria-label={t("profile.pageLabel")}>
@@ -1258,9 +1427,11 @@ export default function UserPage() {
                       <span>
                         {isStartAction
                           ? startGameLabel
-                          : action.id === "settings"
-                            ? t("actions.settings")
-                            : action.id}
+                          : action.id === "how-to-play"
+                            ? t("actions.howToPlay")
+                            : action.id === "settings"
+                              ? t("actions.settings")
+                              : action.id}
                       </span>
                     </button>
                   );
