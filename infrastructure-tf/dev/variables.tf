@@ -56,6 +56,38 @@ variable "repository" {
   default     = "Cartahena"
 }
 
+variable "github_repository" {
+  description = "GitHub repository trusted by AWS OIDC in owner/name format."
+  type        = string
+  default     = "EugenePetrykeiev/Eclipcity"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_repository))
+    error_message = "github_repository must use owner/name format."
+  }
+}
+
+variable "github_environment" {
+  description = "GitHub Environment used by automatic dev deployments."
+  type        = string
+  default     = "dev"
+}
+
+variable "github_oidc_subject_override" {
+  description = "Optional exact GitHub OIDC subject, for example after opting into immutable repository IDs."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = (
+      var.github_oidc_subject_override == null ||
+      can(regex("^repo:.+:environment:[A-Za-z0-9_.-]+$", var.github_oidc_subject_override))
+    )
+    error_message = "github_oidc_subject_override must be null or an exact repository environment subject."
+  }
+}
+
 variable "extra_tags" {
   description = "Additional non-secret tags applied through the AWS provider."
   type        = map(string)
@@ -195,6 +227,34 @@ variable "private_database_hostname" {
   description = "Stable private Route 53 hostname exposed only inside the dev VPC."
   type        = string
   default     = "postgres.internal.dev.eclipcity.digitee.space"
+}
+
+variable "private_backend_hostname" {
+  description = "Stable private Route 53 hostname used by frontend nginx for backend traffic."
+  type        = string
+  default     = "backend.internal.dev.eclipcity.digitee.space"
+}
+
+variable "docker_compose_version" {
+  description = "Pinned Docker Compose plugin release installed on ARM64 EC2 nodes."
+  type        = string
+  default     = "v5.1.4"
+
+  validation {
+    condition     = can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+$", var.docker_compose_version))
+    error_message = "docker_compose_version must be a full vMAJOR.MINOR.PATCH release."
+  }
+}
+
+variable "ecr_retained_release_count" {
+  description = "Number of immutable releases retained in each application ECR repository."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.ecr_retained_release_count >= 3
+    error_message = "ecr_retained_release_count must retain at least three releases."
+  }
 }
 
 variable "backend_secret_kms_key_arn" {

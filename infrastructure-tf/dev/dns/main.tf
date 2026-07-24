@@ -30,3 +30,11 @@ resource "aws_route53_record" "database" {
   ttl     = 60
   records = [var.database_private_ipv4]
 }
+
+resource "aws_route53_record" "backend" {
+  zone_id = aws_route53_zone.internal.zone_id
+  name    = var.private_backend_hostname
+  type    = "A"
+  ttl     = 60
+  records = [var.backend_private_ipv4]
+}

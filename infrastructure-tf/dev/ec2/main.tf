@@ -12,6 +12,7 @@ resource "aws_instance" "frontend" {
     aws_region         = var.aws_region
     domain_name        = var.domain_name
     backend_secret_arn = ""
+    compose_version    = var.docker_compose_version
   })
 
   user_data_replace_on_change = true
@@ -85,6 +86,7 @@ resource "aws_instance" "backend" {
     aws_region         = var.aws_region
     domain_name        = var.domain_name
     backend_secret_arn = var.backend_secret_arn
+    compose_version    = var.docker_compose_version
   })
 
   user_data_replace_on_change = true

@@ -31,10 +31,11 @@ module "network" {
 module "iam" {
   source = "./iam"
 
-  name_prefix                = local.name_prefix
-  backend_secret_arn         = var.backend_secret_arn
-  backend_secret_kms_key_arn = var.backend_secret_kms_key_arn
-  tags                       = local.common_tags
+  name_prefix                 = local.name_prefix
+  backend_secret_arn          = var.backend_secret_arn
+  backend_secret_kms_key_arn  = var.backend_secret_kms_key_arn
+  database_instance_role_name = var.database_instance_role_name
+  tags                        = local.common_tags
 }
 
 module "ec2" {
@@ -53,6 +54,7 @@ module "ec2" {
   frontend_instance_profile  = module.iam.frontend_instance_profile_name
   backend_instance_profile   = module.iam.backend_instance_profile_name
   root_volume_size_gb        = var.root_volume_size_gb
+  docker_compose_version     = var.docker_compose_version
   backend_secret_arn         = var.backend_secret_arn
   enable_detailed_monitoring = var.enable_detailed_monitoring
   tags                       = local.common_tags
@@ -86,5 +88,28 @@ module "dns" {
   private_vpc_id            = module.vpc.vpc_id
   private_database_hostname = var.private_database_hostname
   database_private_ipv4     = data.aws_instance.database.private_ip
+  private_backend_hostname  = var.private_backend_hostname
+  backend_private_ipv4      = module.ec2.backend_private_ip
   tags                      = local.common_tags
+}
+
+module "cicd" {
+  source = "./cicd"
+
+  name_prefix              = local.name_prefix
+  project                  = var.project
+  environment              = var.environment
+  aws_region               = var.aws_region
+  aws_account_id           = var.aws_account_id
+  github_repository        = var.github_repository
+  github_environment       = var.github_environment
+  github_oidc_subject      = var.github_oidc_subject_override
+  frontend_instance_id     = module.ec2.frontend_instance_id
+  backend_instance_id      = module.ec2.backend_instance_id
+  backend_private_hostname = var.private_backend_hostname
+  backend_port             = var.backend_port
+  public_domain            = var.domain_name
+  certificate_email        = coalesce(var.certbot_email, var.budget_alert_email)
+  retained_release_count   = var.ecr_retained_release_count
+  tags                     = local.common_tags
 }

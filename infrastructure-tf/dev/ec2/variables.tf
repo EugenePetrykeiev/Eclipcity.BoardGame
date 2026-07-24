@@ -63,6 +63,11 @@ variable "root_volume_size_gb" {
   type        = number
 }
 
+variable "docker_compose_version" {
+  description = "Pinned Docker Compose plugin version installed during bootstrap."
+  type        = string
+}
+
 variable "backend_secret_arn" {
   description = "Existing backend secret ARN. Only the ARN, never secret contents, enters user data."
   type        = string

@@ -40,6 +40,16 @@ variable "database_private_ipv4" {
   type        = string
 }
 
+variable "private_backend_hostname" {
+  description = "Stable private hostname used by frontend nginx for backend traffic."
+  type        = string
+}
+
+variable "backend_private_ipv4" {
+  description = "Current private IPv4 address of the Terraform-managed backend EC2."
+  type        = string
+}
+
 variable "tags" {
   description = "Common AWS tags."
   type        = map(string)
