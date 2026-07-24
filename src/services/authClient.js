@@ -89,6 +89,20 @@ export async function getUserProfile(userId) {
   return payload;
 }
 
+export async function getUserGameHistory(userId) {
+  const apiBaseUrl = requireApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/users/${userId}/games`, {
+    credentials: "include"
+  });
+  const payload = await response.json().catch(() => []);
+
+  if (!response.ok) {
+    throw new Error(formatApiError(payload, "Game history request failed."));
+  }
+
+  return payload;
+}
+
 export async function getCurrentUser() {
   const apiBaseUrl = requireApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/auth/me`, {
@@ -99,6 +113,21 @@ export async function getCurrentUser() {
 
   if (!response.ok) {
     throw new Error(formatApiError(payload, "Current user request failed."));
+  }
+
+  return payload;
+}
+
+export async function logoutCurrentUser() {
+  const apiBaseUrl = requireApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/auth/logout`, {
+    method: "POST",
+    credentials: "include"
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(formatApiError(payload, "Logout request failed."));
   }
 
   return payload;

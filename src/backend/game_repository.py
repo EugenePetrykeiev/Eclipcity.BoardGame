@@ -29,10 +29,19 @@ from .schemas import UserResponse
 DISCONNECT_GRACE_SECONDS = 120
 HEARTBEAT_STALE_SECONDS = 20
 GAME_CLOSE_DELAY_SECONDS = 60
+CUSTOM_ROUTE_USERNAME = "eugenepetrikeev"
 
 
 def game_path(game_id: uuid.UUID | str) -> str:
     return f"/game/{game_id}"
+
+
+def allowed_route_tile_count(username: str, requested_count: int) -> int:
+    if requested_count != 45 and username.casefold() != CUSTOM_ROUTE_USERNAME:
+        raise PermissionError(
+            "Custom route tile count is restricted to @eugenepetrikeev."
+        )
+    return requested_count
 
 
 def utc_now() -> datetime:
@@ -231,10 +240,23 @@ def record_game_stats(game: GameSession) -> None:
     )
 
 
+def finalize_finish_orders(game: GameSession) -> None:
+    next_order = next_finish_order(game)
+    for player in sorted(score_eligible_players(game), key=lambda item: item.turn_order):
+        if player.finish_order is None:
+            player.finish_order = next_order
+            player.status = "finished"
+            next_order += 1
+
+
 def close_game(game: GameSession, message: str) -> None:
     if game.status != "closed":
         game.status = "closed"
+        game.ended_at = utc_now()
+        finalize_finish_orders(game)
         add_game_event(game, "closed", message)
+    elif game.ended_at is None:
+        game.ended_at = game.stats_recorded_at or utc_now()
     record_game_stats(game)
 
 
@@ -311,6 +333,25 @@ async def get_active_game_for_user(
     if game:
         apply_disconnect_timeouts(game)
     return game
+
+
+async def list_game_history_for_user(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> list[tuple[GameSession, GamePlayer]]:
+    result = await db.execute(
+        select(GameSession, GamePlayer)
+        .join(GamePlayer)
+        .options(selectinload(GameSession.players))
+        .where(
+            GamePlayer.user_id == user_id,
+            GamePlayer.finish_order.is_not(None),
+            GameSession.status == "closed",
+            GameSession.ended_at.is_not(None),
+        )
+        .order_by(GameSession.created_at.desc())
+    )
+    return list(result.unique().all())
 
 
 async def get_active_game_for_lobby(

@@ -1,11 +1,13 @@
 import random
 from collections import Counter
 
+from .level_generation import LEVEL_SHAPES, build_level_coordinates
+
 
 BOARD_COPIES_PER_ITEM = 5
 DECK_COPIES_PER_ITEM = 12
 GAME_ROUTE_TILE_COUNT = 45
-GAME_ROUTE_SHAPE_COUNT = 10
+GAME_ROUTE_SHAPE_COUNT = len(LEVEL_SHAPES)
 STARTING_CARD_COUNT = 6
 PRISONERS_PER_PLAYER = 7
 ACTIONS_PER_TURN = 3
@@ -72,8 +74,15 @@ def generate_route_tiles(
         else shape_id % GAME_ROUTE_SHAPE_COUNT
     )
 
+    coordinates = build_level_coordinates(tile_count, route_shape_id)
     return [
-        {"index": index + 1, "item_id": item_id, "shape_id": route_shape_id}
+        {
+            "index": index + 1,
+            "item_id": item_id,
+            "shape_id": route_shape_id,
+            "grid_x": coordinates[index][0],
+            "grid_y": coordinates[index][1],
+        }
         for index, item_id in enumerate(generate_route_item_order(tile_count))
     ]
 

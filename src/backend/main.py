@@ -20,6 +20,7 @@ from .email_service import send_welcome_email
 from .google_oauth import authorization_url, exchange_google_code
 from .game_repository import (
     access_game,
+    allowed_route_tile_count,
     disconnect_deadline,
     end_turn_action,
     ensure_gameplay_state,
@@ -27,6 +28,7 @@ from .game_repository import (
     get_active_game_for_user,
     heartbeat_game_player,
     leave_game,
+    list_game_history_for_user,
     move_prisoner_back_action,
     play_card_action,
     start_game_from_lobby,
@@ -43,11 +45,13 @@ from .lobby_repository import (
     lobby_path,
     update_lobby_player,
 )
+from .level_generation import generate_level_preview
 from .models import Lobby
 from .schemas import (
     AuthResponse,
     ActiveGameResponse,
     GamePlayerResponse,
+    GameHistoryResponse,
     GamePlayCardRequest,
     GameMoveBackRequest,
     GamePrisonerResponse,
@@ -207,6 +211,7 @@ def serialize_game(game, user: UserResponse) -> GameSessionResponse:
         and current_player.can_rejoin,
         current_player_status=current_player.status if current_player else "none",
         created_at=game.created_at,
+        ended_at=game.ended_at,
     )
 
 
@@ -245,6 +250,27 @@ async def ready(db: AsyncSession = Depends(get_db)) -> dict[str, str]:
         ) from error
 
     return {"status": "ready"}
+
+
+@app.get("/test/level-generation")
+async def test_level_generation(
+    shape_id: int | None = None,
+    tile_count: int = 45,
+    board_width: int = 1920,
+    board_height: int = 900,
+):
+    try:
+        return generate_level_preview(
+            shape_id=shape_id,
+            tile_count=tile_count,
+            board_width=board_width,
+            board_height=board_height,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
 
 
 @app.post("/auth/register", response_model=AuthResponse)
@@ -343,6 +369,33 @@ async def user_profile(
     if user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     return user
+
+
+@app.get("/users/{user_id}/games", response_model=list[GameHistoryResponse])
+async def user_game_history(
+    user_id: uuid.UUID,
+    user: UserResponse = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[GameHistoryResponse]:
+    if user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    history = await list_game_history_for_user(db, user_id)
+    return [
+        GameHistoryResponse(
+            game_id=game.id,
+            started_at=game.created_at,
+            ended_at=game.ended_at,
+            duration_seconds=max(
+                0,
+                int((game.ended_at - game.created_at).total_seconds()),
+            ),
+            player_count=len(game.players),
+            finish_order=player.finish_order,
+            team_color=player.team_color,
+        )
+        for game, player in history
+    ]
 
 
 @app.get("/lobbies/public", response_model=list[LobbySummaryResponse])
@@ -497,11 +550,15 @@ async def start_lobby_game_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     try:
+        route_tile_count = allowed_route_tile_count(
+            user.username,
+            payload.route_tile_count if payload else 45,
+        )
         game = await start_game_from_lobby(
             db,
             lobby,
             user,
-            route_tile_count=payload.route_tile_count if payload else 45,
+            route_tile_count=route_tile_count,
         )
     except PermissionError as error:
         raise HTTPException(

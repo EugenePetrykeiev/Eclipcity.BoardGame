@@ -115,6 +115,8 @@ class GameTileResponse(BaseModel):
     index: int
     item_id: str
     shape_id: int = 0
+    grid_x: int | None = None
+    grid_y: int | None = None
 
 
 class GamePlayerResponse(BaseModel):
@@ -170,6 +172,17 @@ class GameSessionResponse(BaseModel):
     is_participant: bool
     current_player_status: str
     created_at: datetime
+    ended_at: datetime | None = None
+
+
+class GameHistoryResponse(BaseModel):
+    game_id: uuid.UUID
+    started_at: datetime
+    ended_at: datetime
+    duration_seconds: int
+    player_count: int
+    finish_order: int
+    team_color: TeamColor
 
 
 class GameStartRequest(BaseModel):

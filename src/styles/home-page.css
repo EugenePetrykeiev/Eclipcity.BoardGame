@@ -400,6 +400,20 @@
   font-size: 0.82rem;
 }
 
+.footer-version {
+  display: grid;
+  gap: 4px;
+  justify-self: start;
+}
+
+.footer-version span {
+  color: var(--color-muted-dark);
+  font-family: var(--font-hud);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .language-switch,
 .social-links {
   display: flex;
@@ -407,13 +421,18 @@
   gap: 10px;
 }
 
-.language-switch a {
+.language-switch button {
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--color-text-muted);
   font-family: var(--font-hud);
+  cursor: pointer;
 }
 
-.language-switch a:hover,
-.language-switch a[aria-current="page"] {
+.language-switch button:hover,
+.language-switch button:focus-visible,
+.language-switch button.active {
   color: var(--color-accent-primary);
 }
 

@@ -5,6 +5,7 @@ from datetime import timedelta
 from src.backend.game_repository import (
     DISCONNECT_GRACE_SECONDS,
     GAME_CLOSE_DELAY_SECONDS,
+    allowed_route_tile_count,
     disconnect_deadline,
     game_path,
     score_eligible_players,
@@ -49,13 +50,13 @@ class GameRouteRulesTest(unittest.TestCase):
         self.assertTrue(is_valid_route_item_order(item_ids))
         self.assertLessEqual(repeated_pair_count(item_ids), 1)
 
-    def test_generated_route_carries_one_of_ten_shape_ids(self):
-        tiles = generate_route_tiles(shape_id=9)
+    def test_generated_route_carries_one_of_seven_shape_ids(self):
+        tiles = generate_route_tiles(shape_id=6)
         shape_ids = {tile["shape_id"] for tile in tiles}
 
-        self.assertEqual(shape_ids, {9})
-        self.assertEqual(GAME_ROUTE_SHAPE_COUNT, 10)
-        self.assertEqual(generate_route_tiles(shape_id=10)[0]["shape_id"], 0)
+        self.assertEqual(shape_ids, {6})
+        self.assertEqual(GAME_ROUTE_SHAPE_COUNT, 7)
+        self.assertEqual(generate_route_tiles(shape_id=7)[0]["shape_id"], 0)
 
     def test_generated_route_can_use_short_test_count(self):
         tiles = generate_route_tiles(shape_id=2, tile_count=5)
@@ -106,6 +107,12 @@ class GameRouteRulesTest(unittest.TestCase):
 
 
 class GameSessionUtilsTest(unittest.TestCase):
+    def test_custom_route_size_is_restricted_to_eugenepetrikeev(self):
+        self.assertEqual(allowed_route_tile_count("eugenepetrikeev", 5), 5)
+        self.assertEqual(allowed_route_tile_count("another-user", 45), 45)
+        with self.assertRaises(PermissionError):
+            allowed_route_tile_count("another-user", 5)
+
     def test_game_path_uses_uuid_endpoint(self):
         game_id = uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
 
@@ -265,6 +272,9 @@ class GameSessionUtilsTest(unittest.TestCase):
         update_game_completion(game)
 
         self.assertEqual(game.status, "closed")
+        self.assertIsNotNone(game.ended_at)
+        self.assertEqual(runner.finish_order, 2)
+        self.assertEqual(runner.status, "finished")
         self.assertEqual(winner_user.matches_played, 1)
         self.assertEqual(winner_user.wins, 1)
         self.assertEqual(runner_user.matches_played, 3)

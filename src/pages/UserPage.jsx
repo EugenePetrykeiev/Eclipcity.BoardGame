@@ -1,25 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Settings, Volume2, VolumeX, X } from "lucide-react";
+import {
+  ArrowLeft,
+  LogOut,
+  Maximize2,
+  Settings,
+  Volume2,
+  VolumeX,
+  X
+} from "lucide-react";
 import {
   createLobby as createLobbyRequest,
   getActiveGame,
   getCurrentUser,
   getLobbyDetails,
+  getUserGameHistory,
   getUserProfile,
   joinLobbyByCode,
   kickLobbyPlayer,
   leaveLobbyByCode,
   listPublicLobbies,
+  logoutCurrentUser,
   startLobbyGame,
   updateLobbyPlayer
 } from "../services/authClient.js";
 import {
   audioManager,
-  MAX_AUDIO_VOLUME
+  MAX_EFFECTS_VOLUME,
+  MAX_MUSIC_VOLUME
 } from "../services/audioManager.js";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { defaultLobbyName, validateLobbyName } from "../utils/lobbyName.js";
 import defaultUserAvatar from "../assets/default-user-avatar.svg";
+import packageMetadata from "../../package.json";
 
 const userPathPattern =
   /^\/user\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i;
@@ -123,6 +135,7 @@ export default function UserPage() {
     audioManager.getPreferences()
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activePanel, setActivePanel] = useState(null);
   const [lobbyForm, setLobbyForm] = useState({
     name: "",
@@ -138,6 +151,7 @@ export default function UserPage() {
   const [lobbyCodeInput, setLobbyCodeInput] = useState("");
   const [confirmModal, setConfirmModal] = useState(null);
   const [activeGame, setActiveGame] = useState(null);
+  const [gameHistory, setGameHistory] = useState([]);
   const timersRef = useRef(new Map());
 
   const routeContext = useMemo(() => routeContextFromPath(), []);
@@ -201,6 +215,16 @@ export default function UserPage() {
           setGameScenario("join-lobby");
         } else {
           setActivePanel("profile");
+          try {
+            const history = await getUserGameHistory(profile.id);
+            if (isMounted) {
+              setGameHistory(history);
+            }
+          } catch {
+            if (isMounted) {
+              setGameHistory([]);
+            }
+          }
           try {
             const activeGamePayload = await getActiveGame();
             if (isMounted) {
@@ -310,8 +334,26 @@ export default function UserPage() {
     notify(nextValue ? t("actions.soundOnToast") : t("actions.soundOffToast"));
   }
 
-  function changeSoundVolume(event) {
-    audioManager.setVolume(Number(event.target.value) / 100);
+  function changeMusicVolume(event) {
+    audioManager.setMusicVolume(Number(event.target.value) / 100);
+  }
+
+  function changeEffectsVolume(event) {
+    audioManager.setEffectsVolume(Number(event.target.value) / 100);
+  }
+
+  async function logout() {
+    if (isLoggingOut) {
+      return;
+    }
+    setIsLoggingOut(true);
+    try {
+      await logoutCurrentUser();
+      window.location.assign("/");
+    } catch (requestError) {
+      setIsLoggingOut(false);
+      notify(requestError.message || t("settings.logoutError"));
+    }
   }
 
   function userHomePath() {
@@ -378,12 +420,6 @@ export default function UserPage() {
   function selectJoinLobby() {
     setActivePanel("join-lobby");
     refreshPublicLobbies();
-  }
-
-  function selectLocalGame() {
-    setGameScenario("local-game");
-    setActivePanel("profile");
-    notify(t("game.localToast"));
   }
 
   async function createLobby() {
@@ -538,17 +574,64 @@ export default function UserPage() {
 
     if (activePanel === "profile") {
       return (
-        <div className="profile-mock-panel">
-          <p className="profile-kicker">{t("profile.mockKicker")}</p>
-          <h2>{user.username}</h2>
-          <p>{t("profile.mockText")}</p>
+        <div className="game-history-panel">
+          <p className="profile-kicker">{t("history.kicker")}</p>
+          <h2>{t("history.title")}</h2>
+          <div className="game-history-scroll">
+            <table className="game-history-table">
+              <thead>
+                <tr>
+                  <th>{t("history.date")}</th>
+                  <th>{t("history.duration")}</th>
+                  <th>{t("history.place")}</th>
+                  <th>{t("history.color")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gameHistory.map((item) => (
+                  <tr key={item.game_id}>
+                    <td>
+                      {new Intl.DateTimeFormat(
+                        language === "uk" ? "uk-UA" : "en-GB",
+                        { dateStyle: "medium", timeStyle: "short" }
+                      ).format(new Date(item.started_at))}
+                    </td>
+                    <td>
+                      {`${Math.floor(item.duration_seconds / 60)}:${String(
+                        item.duration_seconds % 60
+                      ).padStart(2, "0")}`}
+                    </td>
+                    <td>#{item.finish_order}</td>
+                    <td>
+                      <span className={`history-color ${item.team_color}`}>
+                        {t(`colors.${item.team_color}`)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {gameHistory.length === 0 && (
+              <p className="game-history-empty">{t("history.empty")}</p>
+            )}
+          </div>
         </div>
       );
     }
 
     if (activePanel === "create-lobby") {
       return (
-        <div className="lobby-panel">
+        <div className="lobby-panel create-lobby-panel">
+          <button
+            type="button"
+            className="join-back-button"
+            aria-label={t("common.backHome")}
+            onClick={() => setActivePanel("game-menu")}
+          >
+            <ArrowLeft aria-hidden="true" size={20} strokeWidth={2} />
+            <span>{t("common.backHome")}</span>
+          </button>
+
           <div className="lobby-panel-header">
             <p className="profile-kicker">{t("lobby.setup")}</p>
             <h2>{t("lobby.createTitle")}</h2>
@@ -622,6 +705,16 @@ export default function UserPage() {
     if (activePanel === "join-lobby") {
       return (
         <div className="lobby-panel join-lobby-panel">
+          <button
+            type="button"
+            className="join-back-button"
+            aria-label={t("common.backHome")}
+            onClick={() => setActivePanel("game-menu")}
+          >
+            <ArrowLeft aria-hidden="true" size={20} strokeWidth={2} />
+            <span>{t("common.backHome")}</span>
+          </button>
+
           <div className="lobby-panel-header split">
             <div>
               <p className="profile-kicker">{t("join.kicker")}</p>
@@ -811,7 +904,7 @@ export default function UserPage() {
             <input type="text" disabled placeholder={t("lobby.chatPlaceholder")} />
           </div>
 
-          {lobby.is_host && (
+          {lobby.is_host && user?.username?.toLowerCase() === "eugenepetrikeev" && (
             <div className="game-route-options" aria-label={t("lobby.routeTileCount")}>
               <label className="lobby-field">
                 <span>{t("lobby.routeTileCount")}</span>
@@ -992,9 +1085,6 @@ export default function UserPage() {
               <button type="button" onClick={selectJoinLobby}>
                 {t("game.join")}
               </button>
-              <button type="button" onClick={selectLocalGame}>
-                {t("game.local")}
-              </button>
             </div>
           </section>
         </div>
@@ -1049,23 +1139,55 @@ export default function UserPage() {
 
             <label className="volume-setting">
               <span>
-                <strong>{t("settings.volume")}</strong>
+                <strong>{t("settings.musicVolume")}</strong>
                 <output>
-                  {Math.round(audioPreferences.volume * 100)}%
+                  {Math.round(audioPreferences.musicVolume * 100)}%
                 </output>
               </span>
               <input
                 type="range"
                 min="0"
-                max={MAX_AUDIO_VOLUME * 100}
+                max={MAX_MUSIC_VOLUME * 100}
                 step="1"
-                value={Math.round(audioPreferences.volume * 100)}
+                value={Math.round(audioPreferences.musicVolume * 100)}
                 disabled={!audioPreferences.enabled}
-                aria-label={t("settings.volume")}
-                onChange={changeSoundVolume}
+                aria-label={t("settings.musicVolume")}
+                onChange={changeMusicVolume}
+              />
+            </label>
+
+            <label className="volume-setting">
+              <span>
+                <strong>{t("settings.effectsVolume")}</strong>
+                <output>
+                  {Math.round(audioPreferences.effectsVolume * 100)}%
+                </output>
+              </span>
+              <input
+                type="range"
+                min="0"
+                max={MAX_EFFECTS_VOLUME * 100}
+                step="1"
+                value={Math.round(audioPreferences.effectsVolume * 100)}
+                disabled={!audioPreferences.enabled}
+                aria-label={t("settings.effectsVolume")}
+                onChange={changeEffectsVolume}
               />
             </label>
             <p className="settings-auto-save">{t("settings.autoSave")}</p>
+            <button
+              type="button"
+              className="settings-logout-button"
+              disabled={isLoggingOut}
+              onClick={logout}
+            >
+              <LogOut aria-hidden="true" size={18} strokeWidth={2} />
+              <span>
+                {isLoggingOut
+                  ? t("settings.loggingOut")
+                  : t("settings.logout")}
+              </span>
+            </button>
           </section>
         </div>
       )}
@@ -1171,6 +1293,7 @@ export default function UserPage() {
           {renderStageContent()}
         </section>
       </main>
+      <span className="user-page-version">Patch v{packageMetadata.version}</span>
     </div>
   );
 }

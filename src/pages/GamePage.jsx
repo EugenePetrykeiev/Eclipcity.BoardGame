@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { LogOut } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { LogOut, Users } from "lucide-react";
 import {
   endGameTurn,
   getGameDetails,
@@ -27,46 +27,48 @@ const teamColors = {
   turquoise: "#00F5D4"
 };
 
+const boardGrid = {
+  centerX: 300,
+  centerY: 110,
+  coordinateCenterX: 0,
+  coordinateCenterY: 0,
+  stepX: 80,
+  stepY: 80,
+  minX: 30,
+  maxX: 1890,
+  minY: 30,
+  maxY: 870,
+  unit: "px"
+};
+
 const tunnelShapes = [
   {
-    start: { x: 1, y: 6 },
-    segments: [[1, 0, 2], [0, -1, 2], [-1, 0, 2], [0, -1, 3], [1, 0, 3], [0, 1, 2], [1, 0, 2], [0, -1, 2], [1, 0, 2], [0, 1, 3], [1, 0, 3], [0, 1, 3], [-1, 0, 2], [0, -1, 2], [-1, 0, 2], [0, 1, 2], [-1, 0, 2], [0, -1, 3], [1, 0, 2]]
+    start: { x: 0, y: 7 },
+    segments: [[1, 0, 4], [0, -1, 3], [-1, 0, 4], [0, -1, 4], [1, 0, 3], [0, 1, 3], [1, 0, 3], [0, 1, 4], [1, 0, 4], [0, -1, 3], [-1, 0, 3], [0, -1, 3], [1, 0, 3]]
   },
   {
-    start: { x: 1, y: 7 },
-    segments: [[0, -1, 3], [1, 0, 2], [0, 1, 3], [1, 0, 3], [0, -1, 2], [-1, 0, 2], [0, -1, 2], [-1, 0, 2], [0, -1, 2], [1, 0, 3], [0, 1, 2], [1, 0, 2], [0, -1, 2], [1, 0, 2], [0, 1, 2], [1, 0, 2], [0, 1, 2], [-1, 0, 3], [0, 1, 2], [1, 0, 3]]
+    start: { x: 0, y: 7 },
+    segments: [[1, 0, 3], [0, -1, 3], [-1, 0, 3], [0, -1, 3], [1, 0, 4], [0, 1, 4], [1, 0, 3], [0, -1, 4], [1, 0, 4], [0, 1, 3], [-1, 0, 3], [0, 1, 3], [-1, 0, 4]]
   },
   {
-    start: { x: 1, y: 6 },
-    segments: [[0, -1, 2], [1, 0, 2], [0, 1, 3], [1, 0, 2], [0, -1, 3], [1, 0, 2], [0, 1, 2], [1, 0, 2], [0, -1, 2], [1, 0, 2], [0, -1, 3], [-1, 0, 2], [0, 1, 2], [-1, 0, 2], [0, -1, 2], [-1, 0, 2], [0, 1, 2], [-1, 0, 3], [0, -1, 2], [1, 0, 2]]
+    start: { x: 0, y: 7 },
+    segments: [[1, 0, 3], [0, -1, 3], [-1, 0, 3], [0, -1, 4], [1, 0, 3], [0, 1, 3], [1, 0, 4], [0, -1, 3], [1, 0, 3], [0, 1, 4], [-1, 0, 4], [0, 1, 3], [1, 0, 4]]
   },
   {
-    start: { x: 1, y: 7 },
-    segments: [[1, 0, 2], [0, -1, 3], [-1, 0, 2], [0, -1, 3], [1, 0, 2], [0, 1, 2], [1, 0, 2], [0, -1, 2], [1, 0, 3], [0, 1, 3], [-1, 0, 3], [0, 1, 3], [1, 0, 2], [0, -1, 2], [1, 0, 2], [0, -1, 2], [1, 0, 2], [0, -1, 2], [-1, 0, 2]]
+    start: { x: 0, y: 7 },
+    segments: [[1, 0, 3], [0, -1, 4], [-1, 0, 3], [0, -1, 3], [1, 0, 4], [0, 1, 4], [1, 0, 3], [0, -1, 3], [1, 0, 4], [0, 1, 3], [-1, 0, 3], [0, 1, 3], [-1, 0, 4]]
   },
   {
-    start: { x: 1, y: 7 },
-    segments: [[1, 0, 3], [0, -1, 2], [-1, 0, 3], [0, -1, 3], [1, 0, 3], [0, 1, 2], [1, 0, 3], [0, -1, 3], [1, 0, 3], [0, 1, 2], [-1, 0, 2], [0, 1, 2], [-1, 0, 2], [0, 1, 2], [1, 0, 3], [0, -1, 3], [1, 0, 2], [0, -1, 3]]
+    start: { x: 0, y: 7 },
+    segments: [[1, 0, 3], [0, -1, 3], [-1, 0, 3], [0, -1, 4], [1, 0, 4], [0, 1, 3], [1, 0, 4], [0, -1, 3], [1, 0, 3], [0, 1, 4], [-1, 0, 4], [0, 1, 3], [-1, 0, 3]]
   },
   {
-    start: { x: 2, y: 7 },
-    segments: [[1, 0, 3], [0, -1, 2], [1, 0, 2], [0, 1, 2], [1, 0, 2], [0, -1, 2], [1, 0, 2], [0, -1, 3], [-1, 0, 2], [0, 1, 2], [-1, 0, 2], [0, -1, 3], [-1, 0, 3], [0, 1, 2], [-1, 0, 3], [0, 1, 3], [1, 0, 2], [0, -1, 2], [1, 0, 3]]
+    start: { x: 0, y: 7 },
+    segments: [[1, 0, 4], [0, -1, 4], [-1, 0, 3], [0, -1, 3], [1, 0, 4], [0, 1, 4], [1, 0, 3], [0, 1, 3], [1, 0, 3], [0, -1, 4], [-1, 0, 3], [0, -1, 3], [1, 0, 3]]
   },
   {
-    start: { x: 2, y: 7 },
-    segments: [[1, 0, 3], [0, -1, 2], [1, 0, 3], [0, 1, 2], [1, 0, 3], [0, -1, 2], [-1, 0, 2], [0, -1, 2], [1, 0, 2], [0, -1, 2], [-1, 0, 3], [0, 1, 3], [-1, 0, 2], [0, -1, 3], [-1, 0, 2], [0, 1, 2], [-1, 0, 3], [0, -1, 2], [1, 0, 2]]
-  },
-  {
-    start: { x: 2, y: 7 },
-    segments: [[1, 0, 3], [0, -1, 2], [1, 0, 3], [0, 1, 2], [1, 0, 3], [0, -1, 3], [-1, 0, 3], [0, -1, 3], [-1, 0, 3], [0, 1, 2], [-1, 0, 2], [0, -1, 2], [-1, 0, 2], [0, 1, 3], [1, 0, 3], [0, 1, 2], [-1, 0, 3]]
-  },
-  {
-    start: { x: 1, y: 6 },
-    segments: [[1, 0, 2], [0, -1, 2], [-1, 0, 2], [0, -1, 3], [1, 0, 2], [0, 1, 2], [1, 0, 3], [0, 1, 2], [-1, 0, 2], [0, 1, 2], [1, 0, 3], [0, -1, 2], [1, 0, 2], [0, 1, 2], [1, 0, 2], [0, -1, 3], [-1, 0, 2], [0, -1, 3], [1, 0, 2], [0, 1, 2]]
-  },
-  {
-    start: { x: 2, y: 7 },
-    segments: [[0, -1, 3], [1, 0, 2], [0, -1, 3], [1, 0, 2], [0, 1, 3], [1, 0, 2], [0, -1, 3], [1, 0, 3], [0, 1, 2], [-1, 0, 2], [0, 1, 2], [1, 0, 2], [0, 1, 2], [-1, 0, 3], [0, -1, 2], [-1, 0, 2], [0, 1, 2], [-1, 0, 3], [0, -1, 2]]
+    start: { x: 0, y: 7 },
+    segments: [[1, 0, 3], [0, -1, 3], [-1, 0, 3], [0, -1, 3], [1, 0, 4], [0, 1, 3], [1, 0, 4], [0, 1, 3], [1, 0, 3], [0, -1, 4], [-1, 0, 4], [0, -1, 3], [1, 0, 4]]
   }
 ];
 
@@ -98,32 +100,25 @@ function buildTunnelCoordinates(count, shapeId = 0) {
   return coordinates;
 }
 
-function toBoardPoint(coordinate) {
+function toBoardPoint(coordinate, layout = boardGrid) {
   return {
-    x: 16 + coordinate.x * (78 / 12),
-    y: 6 + coordinate.y * (84 / 8)
+    x: layout.centerX + (coordinate.x - layout.coordinateCenterX) * layout.stepX,
+    y: layout.centerY + (coordinate.y - layout.coordinateCenterY) * layout.stepY
   };
 }
 
-function clampBoardPoint(point) {
+function clampBoardPoint(point, layout = boardGrid) {
   return {
-    x: Math.min(94, Math.max(6, point.x)),
-    y: Math.min(94, Math.max(6, point.y))
+    x: Math.min(layout.maxX, Math.max(layout.minX, point.x)),
+    y: Math.min(layout.maxY, Math.max(layout.minY, point.y))
   };
 }
 
-function markerBefore(firstPoint, secondPoint) {
-  return clampBoardPoint({
-    x: firstPoint.x + (firstPoint.x - secondPoint.x) * 1.6,
-    y: firstPoint.y + (firstPoint.y - secondPoint.y) * 1.6
-  });
-}
-
-function markerAfter(previousPoint, lastPoint) {
+function markerAfter(previousPoint, lastPoint, layout = boardGrid) {
   return clampBoardPoint({
     x: lastPoint.x + (lastPoint.x - previousPoint.x) * 1.6,
     y: lastPoint.y + (lastPoint.y - previousPoint.y) * 1.6
-  });
+  }, layout);
 }
 
 function pointKey(point) {
@@ -134,7 +129,7 @@ function distanceToClosestPoint(point, points) {
   return Math.min(...points.map((routePoint) => Math.hypot(point.x - routePoint.x, point.y - routePoint.y)));
 }
 
-function findExitTilePoint(previousPoint, lastPoint, routePoints) {
+function findExitTilePoint(previousPoint, lastPoint, routePoints, layout = boardGrid) {
   const vector = {
     x: lastPoint.x - previousPoint.x,
     y: lastPoint.y - previousPoint.y
@@ -149,26 +144,41 @@ function findExitTilePoint(previousPoint, lastPoint, routePoints) {
     y: direction.x
   };
   const usedRoutePoints = new Set(routePoints.map(pointKey));
+  const otherRoutePoints = routePoints.slice(0, -1);
+  const gridStep = Math.min(layout.stepX, layout.stepY);
   const candidates = [
     { forward: 1, side: 0 },
-    { forward: 2, side: 0 },
     { forward: 0, side: 1 },
-    { forward: 0, side: -1 },
-    { forward: -1, side: 0 }
+    { forward: 0, side: -1 }
   ]
     .map(({ forward, side }) => ({
-      x: lastPoint.x + direction.x * 6.5 * forward + perpendicular.x * 6.5 * side,
-      y: lastPoint.y + direction.y * 10.5 * forward + perpendicular.y * 10.5 * side,
+      x:
+        lastPoint.x +
+        direction.x * layout.stepX * forward +
+        perpendicular.x * layout.stepX * side,
+      y:
+        lastPoint.y +
+        direction.y * layout.stepY * forward +
+        perpendicular.y * layout.stepY * side,
       forward,
       side
     }))
-    .filter((point) => point.x >= 11 && point.x <= 89 && point.y >= 13 && point.y <= 87)
+    .filter(
+      (point) =>
+        point.x >= layout.minX &&
+        point.x <= layout.maxX &&
+        point.y >= layout.minY &&
+        point.y <= layout.maxY
+    )
     .filter((point) => !usedRoutePoints.has(pointKey(point)))
     .map((point) => ({
       point,
-      closestTileDistance: distanceToClosestPoint(point, routePoints)
+      closestTileDistance: distanceToClosestPoint(point, otherRoutePoints)
     }))
-    .filter((candidate) => candidate.closestTileDistance >= 6.5)
+    .filter(
+      (candidate) =>
+        candidate.closestTileDistance > gridStep
+    )
     .sort(
       (first, second) =>
         Math.abs(first.point.forward - 1) - Math.abs(second.point.forward - 1) ||
@@ -176,23 +186,92 @@ function findExitTilePoint(previousPoint, lastPoint, routePoints) {
         second.closestTileDistance - first.closestTileDistance
     );
 
-  return candidates[0]?.point || markerAfter(previousPoint, lastPoint);
+  return candidates[0]?.point || markerAfter(previousPoint, lastPoint, layout);
 }
 
-function startApproachArrow(startPoint) {
-  const y = startPoint.y;
-  const endX = startPoint.x - 1.85;
-  const headBaseX = endX - 1.45;
-  const startX = Math.max(11, headBaseX - 5.4);
+function findExitGridCoordinate(coordinates) {
+  if (coordinates.length < 2) {
+    return coordinates[0] || { x: 0, y: 0 };
+  }
+  const previousPoint = coordinates.at(-2);
+  const lastPoint = coordinates.at(-1);
+  const direction = {
+    x: lastPoint.x - previousPoint.x,
+    y: lastPoint.y - previousPoint.y
+  };
+  const perpendicular = {
+    x: -direction.y,
+    y: direction.x
+  };
+  const usedPoints = new Set(coordinates.map(pointKey));
+  const otherRoutePoints = coordinates.slice(0, -1);
+  const candidates = [
+    {
+      x: lastPoint.x + direction.x,
+      y: lastPoint.y + direction.y
+    },
+    {
+      x: lastPoint.x + perpendicular.x,
+      y: lastPoint.y + perpendicular.y
+    },
+    {
+      x: lastPoint.x - perpendicular.x,
+      y: lastPoint.y - perpendicular.y
+    }
+  ];
+
+  return (
+    candidates.find(
+      (candidate) =>
+        !usedPoints.has(pointKey(candidate)) &&
+        otherRoutePoints.every(
+          (point) =>
+            Math.abs(candidate.x - point.x) +
+              Math.abs(candidate.y - point.y) >
+            1
+        )
+    ) || {
+      x: lastPoint.x + direction.x,
+      y: lastPoint.y + direction.y
+    }
+  );
+}
+
+function createBoardLayout(metrics, coordinates = []) {
+  if (!metrics.width || !metrics.height || coordinates.length === 0) {
+    return boardGrid;
+  }
+
+  const edgeInset = metrics.tileSize / 2;
+  const exitCoordinate = findExitGridCoordinate(coordinates);
+  const levelCoordinates = [...coordinates, exitCoordinate];
+  const coordinateXs = levelCoordinates.map((coordinate) => coordinate.x);
+  const coordinateYs = levelCoordinates.map((coordinate) => coordinate.y);
+  const minCoordinateX = Math.min(...coordinateXs);
+  const minCoordinateY = Math.min(...coordinateYs);
+  const maxCoordinateX = Math.max(...coordinateXs);
+  const maxCoordinateY = Math.max(...coordinateYs);
+  const coordinateWidth = Math.max(1, maxCoordinateX - minCoordinateX);
+  const coordinateHeight = Math.max(1, maxCoordinateY - minCoordinateY);
+  const stepX = 80;
+  const stepY = 80;
+  const routeWidth = coordinateWidth * stepX;
+  const routeHeight = coordinateHeight * stepY;
+  const routeLeft = Math.max(edgeInset, (metrics.width - routeWidth) / 2);
+  const routeTop = Math.max(edgeInset, (metrics.height - routeHeight) / 2);
 
   return {
-    line: {
-      x1: startX,
-      y1: y,
-      x2: headBaseX,
-      y2: y
-    },
-    head: `${headBaseX},${y - 0.85} ${endX},${y} ${headBaseX},${y + 0.85}`
+    centerX: routeLeft,
+    centerY: routeTop,
+    coordinateCenterX: minCoordinateX,
+    coordinateCenterY: minCoordinateY,
+    stepX,
+    stepY,
+    minX: edgeInset,
+    maxX: metrics.width - edgeInset,
+    minY: edgeInset,
+    maxY: metrics.height - edgeInset,
+    unit: "px"
   };
 }
 
@@ -201,13 +280,6 @@ function hashString(value) {
     (hash, char) => (hash * 31 + char.charCodeAt(0)) % 9973,
     7
   );
-}
-
-function topSeatStyle(index, total) {
-  return {
-    "--seat-index": index,
-    "--seat-count": total
-  };
 }
 
 function startSlotStyle(player, index, total) {
@@ -251,6 +323,25 @@ function CardDots({ count }) {
   );
 }
 
+function ItemPopover({ item, language, kind, above = false }) {
+  if (!item) {
+    return null;
+  }
+  const isUkrainian = language === "uk";
+  const name = isUkrainian ? item.nameUk : item.nameEn;
+  const description = isUkrainian ? item.descriptionUk : item.descriptionEn;
+
+  return (
+    <span
+      className={`item-popover ${above ? "above" : ""}`}
+      role="tooltip"
+    >
+      <strong>{name}</strong>
+      {kind === "tile" && <span>{description}</span>}
+    </span>
+  );
+}
+
 function PrisonerProgress({ player }) {
   const total = player.prisoners_total || 7;
   const escaped = player.escaped_prisoners || 0;
@@ -276,7 +367,9 @@ function PlayerCardBacks({
   cards = [],
   disabled = false,
   onCardClick = null,
-  onCardHover = null
+  onCardHover = null,
+  onCardLeave = null,
+  language = "uk"
 }) {
   const visibleCards = Math.min(count, 6);
   const openCards = cards.slice(0, visibleCards);
@@ -292,11 +385,12 @@ function PlayerCardBacks({
                 type="button"
                 key={`${item.id}-${index}`}
                 className="hand-card-button"
-                disabled={disabled}
+                aria-disabled={disabled}
                 data-audio-scope="card"
+                aria-label={language === "uk" ? item.nameUk : item.nameEn}
                 onClick={() => onCardClick?.(item)}
                 onPointerEnter={(event) => onCardHover?.(item, event)}
-                title={item.nameUk}
+                onPointerLeave={() => onCardLeave?.(item)}
                 style={{
                   "--card-angle": `${offset * 8}deg`,
                   "--card-arc": `${Math.abs(offset) * 5}px`,
@@ -304,6 +398,7 @@ function PlayerCardBacks({
                 }}
               >
                 <img src={item.cardImage} alt={item.nameUk} />
+                <ItemPopover item={item} language={language} kind="card" above />
               </button>
             );
           })()
@@ -336,7 +431,9 @@ function PlayerSeat({
   style = {},
   canAct = false,
   onCardClick = null,
-  onCardHover = null
+  onCardHover = null,
+  onCardLeave = null,
+  language = "uk"
 }) {
   const teamColor = teamColors[player.team_color];
   return (
@@ -345,22 +442,39 @@ function PlayerSeat({
       isSelf ? "self-seat" : ""
       }`.trim()}
       style={style}
+      aria-label={
+        isSelf
+          ? player.nickname
+          : `${player.nickname}: ${player.card_count} cards`
+      }
     >
-      {!isSelf && (
-        <div className="seat-name-row">
-          <PawnSilhouette teamColor={teamColor} title={player.nickname} />
-          <span>{player.nickname}</span>
-          {isCurrent && <i className="turn-pulse" aria-label="current turn" />}
-        </div>
+      {isSelf ? (
+        <PlayerCardBacks
+          count={player.card_count}
+          compact={handCards.length === 0}
+          cards={handCards}
+          disabled={!canAct}
+          onCardClick={onCardClick}
+          onCardHover={onCardHover}
+          onCardLeave={onCardLeave}
+          language={language}
+        />
+      ) : (
+        <>
+          <div
+            className="opponent-player-icon"
+            style={{ "--team-color": teamColor }}
+            aria-hidden="true"
+          >
+            <Users size={24} strokeWidth={2} />
+            {isCurrent && <i className="turn-pulse" />}
+          </div>
+          <div className="opponent-card-count" aria-hidden="true">
+            <img src={cardBackImage} alt="" />
+            <strong>{player.card_count}</strong>
+          </div>
+        </>
       )}
-      <PlayerCardBacks
-        count={player.card_count}
-        compact={handCards.length === 0}
-        cards={handCards}
-        disabled={isSelf && !canAct}
-        onCardClick={isSelf ? onCardClick : null}
-        onCardHover={isSelf ? onCardHover : null}
-      />
     </article>
   );
 }
@@ -398,7 +512,7 @@ function gameActionMessage(message) {
 }
 
 export default function GamePage() {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const [game, setGame] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
@@ -409,11 +523,22 @@ export default function GamePage() {
   const [isActionPending, setIsActionPending] = useState(false);
   const [isRosterOpen, setIsRosterOpen] = useState(false);
   const [acknowledgedResultKey, setAcknowledgedResultKey] = useState("");
+  const [timerNow, setTimerNow] = useState(() => Date.now());
+  const [sparkBurst, setSparkBurst] = useState(null);
+  const [deckTiltCount, setDeckTiltCount] = useState(0);
+  const [hoveredCardId, setHoveredCardId] = useState(null);
+  const [boardMetrics, setBoardMetrics] = useState({
+    width: 0,
+    height: 0,
+    tileSize: 60
+  });
   const audioGameStateRef = useRef({
     handCount: null,
     isMyTurn: false
   });
   const yourTurnTimerRef = useRef(null);
+  const sparkTimerRef = useRef(null);
+  const boardRef = useRef(null);
   const gameId = useMemo(() => gameIdFromPath(), []);
   const itemMap = useMemo(
     () => new Map(gameItems.map((item) => [item.id, item])),
@@ -483,6 +608,15 @@ export default function GamePage() {
   }, [gameId, status, t]);
 
   useEffect(() => {
+    if (!game?.created_at || game.ended_at || game.status === "closed") {
+      return undefined;
+    }
+    setTimerNow(Date.now());
+    const intervalId = window.setInterval(() => setTimerNow(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [game?.created_at, game?.ended_at, game?.status]);
+
+  useEffect(() => {
     if (!actionNotice) {
       return undefined;
     }
@@ -547,6 +681,9 @@ export default function GamePage() {
       if (yourTurnTimerRef.current) {
         window.clearTimeout(yourTurnTimerRef.current);
       }
+      if (sparkTimerRef.current) {
+        window.clearTimeout(sparkTimerRef.current);
+      }
       audioGameStateRef.current = {
         handCount: null,
         isMyTurn: false
@@ -567,6 +704,38 @@ export default function GamePage() {
     window.addEventListener("keydown", toggleRosterByTab);
     return () => window.removeEventListener("keydown", toggleRosterByTab);
   }, []);
+
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!board || status !== "ready") {
+      return undefined;
+    }
+
+    function updateBoardMetrics() {
+      const bounds = board.getBoundingClientRect();
+      const tileSize =
+        Number.parseFloat(
+          window.getComputedStyle(board).getPropertyValue("--tile-size")
+        ) || 60;
+      const nextMetrics = {
+        width: Math.round(bounds.width * 10) / 10,
+        height: Math.round(bounds.height * 10) / 10,
+        tileSize: Math.round(tileSize * 10) / 10
+      };
+      setBoardMetrics((currentMetrics) =>
+        currentMetrics.width === nextMetrics.width &&
+        currentMetrics.height === nextMetrics.height &&
+        currentMetrics.tileSize === nextMetrics.tileSize
+          ? currentMetrics
+          : nextMetrics
+      );
+    }
+
+    updateBoardMetrics();
+    const observer = new ResizeObserver(updateBoardMetrics);
+    observer.observe(board);
+    return () => observer.disconnect();
+  }, [status]);
 
   async function leaveCurrentGame() {
     if (!game) {
@@ -603,6 +772,10 @@ export default function GamePage() {
       const movedPrisoner = options.prisonerId
         ? didOwnedPrisonerMove(previousGame, payload, options.prisonerId)
         : false;
+      const escapedPrisoner = options.prisonerId
+        ? didPrisonerEscape(previousGame, payload, options.prisonerId)
+        : false;
+      const movementEffect = escapedPrisoner ? "escape" : "moveUnit";
       options.onSuccess?.(payload);
       if (movement) {
         setMovingPrisoner(movement);
@@ -610,13 +783,13 @@ export default function GamePage() {
           setGame(payload);
           setMovingPrisoner(null);
           if (movedPrisoner) {
-            window.requestAnimationFrame(() => audioManager.playEffect("moveUnit"));
+            window.requestAnimationFrame(() => audioManager.playEffect(movementEffect));
           }
         }, 680);
       } else {
         setGame(payload);
         if (movedPrisoner) {
-          window.requestAnimationFrame(() => audioManager.playEffect("moveUnit"));
+          window.requestAnimationFrame(() => audioManager.playEffect(movementEffect));
         }
       }
       setSelectedPrisoner(null);
@@ -656,10 +829,15 @@ export default function GamePage() {
     );
   }
 
-  function handleCardHover(_item, event) {
+  function handleCardHover(item, event) {
+    setHoveredCardId(item.id);
     if (event.pointerType !== "touch") {
       audioManager.playEffect("selectCard");
     }
+  }
+
+  function handleCardLeave() {
+    setHoveredCardId(null);
   }
 
   function selectPrisoner(prisonerId) {
@@ -668,6 +846,32 @@ export default function GamePage() {
   }
 
   function handleBoardClick(event) {
+    const boardRect = event.currentTarget.getBoundingClientRect();
+    const sparkId = Date.now();
+    const sparkCount = 8;
+    setSparkBurst({
+      id: sparkId,
+      x: event.clientX - boardRect.left,
+      y: event.clientY - boardRect.top,
+      particles: Array.from({ length: sparkCount }, (_, index) => {
+        const angle = (Math.PI * 2 * index) / sparkCount + (index % 2) * 0.18;
+        const distance = 18 + (index % 3) * 7;
+        return {
+          id: `${sparkId}-${index}`,
+          dx: Math.cos(angle) * distance,
+          dy: Math.sin(angle) * distance,
+          delay: index * 12
+        };
+      })
+    });
+    if (sparkTimerRef.current) {
+      window.clearTimeout(sparkTimerRef.current);
+    }
+    sparkTimerRef.current = window.setTimeout(() => {
+      setSparkBurst(null);
+      sparkTimerRef.current = null;
+    }, 620);
+
     if (event.target.closest(".tunnel-tile, .prisoner-token")) {
       return;
     }
@@ -740,8 +944,17 @@ export default function GamePage() {
   }
 
   const routeShapeId = Number(game.route_tiles[0]?.shape_id || 0);
-  const coordinates = buildTunnelCoordinates(game.route_tiles.length, routeShapeId);
-  const boardPoints = coordinates.map(toBoardPoint);
+  const hasServerCoordinates = game.route_tiles.every(
+    (tile) => Number.isInteger(tile.grid_x) && Number.isInteger(tile.grid_y)
+  );
+  const coordinates = hasServerCoordinates
+    ? game.route_tiles.map((tile) => ({ x: tile.grid_x, y: tile.grid_y }))
+    : buildTunnelCoordinates(game.route_tiles.length, routeShapeId);
+  const boardLayout = createBoardLayout(boardMetrics, coordinates);
+  const boardPoints = coordinates.map((coordinate) =>
+    toBoardPoint(coordinate, boardLayout)
+  );
+  const boardPointUnit = boardLayout.unit;
   const startPoint = boardPoints[0];
   const exitPoint = boardPoints.at(-1);
   const me = game.players.find((player) => player.user_id === game.current_user_id);
@@ -783,7 +996,16 @@ export default function GamePage() {
       ? "finished"
       : firstFinisher
         ? "loss"
-        : "";
+      : "";
+  const timerEnd = game.ended_at ? new Date(game.ended_at).getTime() : timerNow;
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((timerEnd - new Date(game.created_at).getTime()) / 1000)
+  );
+  const elapsedTime = `${String(Math.floor(elapsedSeconds / 60)).padStart(
+    2,
+    "0"
+  )}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
   for (const prisoner of game.prisoners || []) {
     if (prisoner.position === "start") {
       const ownerId = String(prisoner.owner_user_id);
@@ -800,12 +1022,15 @@ export default function GamePage() {
   const visibleMyHandCards = (me?.hand_cards || [])
     .map((itemId) => itemMap.get(itemId))
     .filter(Boolean);
-  const exitTilePoint = findExitTilePoint(boardPoints.at(-2) || exitPoint, exitPoint, boardPoints);
+  const exitTilePoint = findExitTilePoint(
+    boardPoints.at(-2) || exitPoint,
+    exitPoint,
+    boardPoints,
+    boardLayout
+  );
   const tunnelPathPoints = [...boardPoints, exitTilePoint]
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
-  const startArrow = startApproachArrow(startPoint);
-
   function pointForPosition(position) {
     if (position === "start") {
       return startPoint;
@@ -877,6 +1102,21 @@ export default function GamePage() {
     );
   }
 
+  function didPrisonerEscape(previousGame, nextGame, prisonerId) {
+    const previousPrisoner = previousGame?.prisoners?.find(
+      (prisoner) => prisoner.id === prisonerId
+    );
+    const nextPrisoner = nextGame?.prisoners?.find(
+      (prisoner) => prisoner.id === prisonerId
+    );
+    return Boolean(
+      previousPrisoner &&
+      nextPrisoner &&
+      previousPrisoner.position !== "exit" &&
+      nextPrisoner.position === "exit"
+    );
+  }
+
   return (
     <main className="game-page" aria-label={t("gamePage.label")}>
       <header className="game-topbar">
@@ -916,7 +1156,12 @@ export default function GamePage() {
             {isRosterOpen ? "‹" : "›"}
           </button>
           <div className="roster-panel">
-            <h2>{game.lobby_name}</h2>
+            <div className="roster-title-row">
+              <h2>{game.lobby_name}</h2>
+              <time className="roster-stopwatch" dateTime={`PT${elapsedSeconds}S`}>
+                {elapsedTime}
+              </time>
+            </div>
             <p className="profile-kicker">{t("gamePage.players")}</p>
             <div className="roster-list">
               {game.players.map((player) => {
@@ -953,16 +1198,36 @@ export default function GamePage() {
           </div>
         </aside>
 
-        <section className="game-table-shell" aria-label={t("gamePage.table")}>
-          {opponents.map((player, index) => (
-            <PlayerSeat
-              key={player.user_id}
-              player={player}
-              seatClass="seat-top-player"
-              isCurrent={currentTurnPlayer?.user_id === player.user_id}
-              style={topSeatStyle(index, opponents.length)}
-            />
-          ))}
+        <section
+          className={`game-table-shell ${isRosterOpen ? "roster-open" : ""}`}
+          aria-label={t("gamePage.table")}
+        >
+          <div className="opponent-seat-column" aria-label={t("gamePage.players")}>
+            {Array.from({ length: 4 }).map((_, index) => {
+              const player = opponents[index];
+              if (!player) {
+                return (
+                  <div
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`empty-opponent-${index}`}
+                    className="table-player-seat seat-left-player empty"
+                    aria-hidden="true"
+                  >
+                    <Users size={22} strokeWidth={1.8} />
+                    <span>—</span>
+                  </div>
+                );
+              }
+              return (
+                <PlayerSeat
+                  key={player.user_id}
+                  player={player}
+                  seatClass="seat-left-player"
+                  isCurrent={currentTurnPlayer?.user_id === player.user_id}
+                />
+              );
+            })}
+          </div>
           {me && (
             <PlayerSeat
               player={me}
@@ -973,6 +1238,8 @@ export default function GamePage() {
               canAct={canUseActions && Boolean(selectedPrisoner)}
               onCardClick={handleCardClick}
               onCardHover={handleCardHover}
+              onCardLeave={handleCardLeave}
+              language={language}
             />
           )}
           {isMyTurn && (
@@ -991,27 +1258,65 @@ export default function GamePage() {
             </aside>
           )}
           <div className="game-table-perspective">
-            <div className="game-table" onClick={handleBoardClick}>
+            <div
+              className="game-table"
+              ref={boardRef}
+              style={{
+                "--board-grid-step-x": `${boardLayout.stepX}${boardPointUnit}`,
+                "--board-grid-step-y": `${boardLayout.stepY}${boardPointUnit}`,
+                "--board-grid-offset-x": `${
+                  boardLayout.centerX - boardMetrics.tileSize / 2
+                }${boardPointUnit}`,
+                "--board-grid-offset-y": `${
+                  boardLayout.centerY - boardMetrics.tileSize / 2
+                }${boardPointUnit}`
+              }}
+              onClick={handleBoardClick}
+            >
+              {sparkBurst && (
+                <span
+                  className="spark-burst"
+                  style={{ left: sparkBurst.x, top: sparkBurst.y }}
+                  aria-hidden="true"
+                >
+                  {sparkBurst.particles.map((particle) => (
+                    <i
+                      key={particle.id}
+                      style={{
+                        "--spark-x": `${particle.dx}px`,
+                        "--spark-y": `${particle.dy}px`,
+                        "--spark-delay": `${particle.delay}ms`
+                      }}
+                    />
+                  ))}
+                </span>
+              )}
               <svg
                 className="tunnel-lines"
-                viewBox="0 0 100 100"
+                viewBox={
+                  boardPointUnit === "px"
+                    ? `0 0 ${boardMetrics.width} ${boardMetrics.height}`
+                    : "0 0 100 100"
+                }
                 preserveAspectRatio="none"
                 aria-hidden="true"
               >
-                <g className="tunnel-entry-arrow">
-                  <line
-                    x1={startArrow.line.x1}
-                    y1={startArrow.line.y1}
-                    x2={startArrow.line.x2}
-                    y2={startArrow.line.y2}
-                  />
-                  <polygon points={startArrow.head} />
-                </g>
                 <polyline points={tunnelPathPoints} />
-                {movingPrisoner && (
+              </svg>
+              {movingPrisoner && (
+                <svg
+                  className="movement-layer"
+                  viewBox={
+                    boardPointUnit === "px"
+                      ? `0 0 ${boardMetrics.width} ${boardMetrics.height}`
+                      : "0 0 100 100"
+                  }
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
                   <circle
                     className="moving-prisoner-dot"
-                    r="1.55"
+                    r={boardPointUnit === "px" ? 11 : 1.55}
                     fill={movingPrisoner.teamColor}
                   >
                     <animateMotion
@@ -1020,8 +1325,8 @@ export default function GamePage() {
                       path={movingPrisoner.path}
                     />
                   </circle>
-                )}
-              </svg>
+                </svg>
+              )}
 
               <div className="start-hatch">
                 <span>{t("gamePage.start")}</span>
@@ -1087,18 +1392,33 @@ export default function GamePage() {
                 </div>
               </div>
 
-              <div className="deck-stack" aria-label="Колода">
+              <button
+                type="button"
+                className="deck-stack"
+                aria-label={language === "uk" ? "Колода" : "Deck"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setDeckTiltCount((count) => count + 1);
+                }}
+              >
                 <img src={cardBackImage} alt="" />
                 <img src={cardBackImage} alt="" />
-                <img src={cardBackImage} alt="" />
-                <span>Колода</span>
-              </div>
+                <img key={deckTiltCount} className="deck-top-card" src={cardBackImage} alt="" />
+              </button>
 
               <div
-                className="exit-gate"
-                style={{ left: `${exitTilePoint.x}%`, top: `${exitTilePoint.y}%` }}
+                className="tunnel-tile exit-gate"
+                role="img"
+                aria-label={t("gamePage.exit")}
+                style={{
+                  left: `${exitTilePoint.x}${boardPointUnit}`,
+                  top: `${exitTilePoint.y}${boardPointUnit}`
+                }}
               >
-                <span>{t("gamePage.exit")}</span>
+                <span className="exit-label">{t("gamePage.exit")}</span>
+                <span className="item-popover" role="tooltip">
+                  <strong>{t("gamePage.exit")}</strong>
+                </span>
                 <div className="exit-rescued-stack" aria-label={t("gamePage.rescuedPrisoners")}>
                   {rescuedPlayers.map((player, index) => (
                     <span
@@ -1127,15 +1447,35 @@ export default function GamePage() {
                   <button
                     type="button"
                     key={`${tile.index}-${tile.item_id}`}
-                    className={`tunnel-tile ${hasOccupants ? "occupied" : ""}`}
+                    className={`tunnel-tile ${
+                      hasOccupants ? "occupied" : ""
+                    } ${hoveredCardId === tile.item_id ? "card-match" : ""}`}
                     data-audio-scope="board"
-                    style={{ left: `${point.x}%`, top: `${point.y}%` }}
-                    title={item?.nameUk || tile.item_id}
+                    style={{
+                      left: `${point.x}${boardPointUnit}`,
+                      top: `${point.y}${boardPointUnit}`
+                    }}
+                    aria-label={
+                      item
+                        ? `${language === "uk" ? item.nameUk : item.nameEn}, ${
+                            language === "uk" ? "тайл" : "tile"
+                          } ${tile.index}`
+                        : tile.item_id
+                    }
                     onClick={() => handleTileClick(tile.index)}
                     disabled={!canUseActions || !selectedPrisoner}
                   >
                     <span className="tile-index">{tile.index}</span>
                     {item && <img src={item.itemImage} alt="" />}
+                    <ItemPopover
+                      item={item}
+                      language={language}
+                      kind="tile"
+                      above={
+                        point.y >
+                        (boardPointUnit === "px" ? boardMetrics.height * 0.64 : 64)
+                      }
+                    />
                   </button>
                 );
               })}
@@ -1168,9 +1508,13 @@ export default function GamePage() {
                       style={{
                         "--team-color": teamColors[owner.team_color],
                         "--pawn-mask": `url("${prisonerPawnImage}")`,
-                        left: `calc(${point.x}% + ${(stackIndex - 1) * 10}px)`,
-                        top: `calc(${point.y}% + ${stackIndex * 2}px)`,
-                        zIndex: 40 + stackIndex
+                        left: `calc(${point.x}${boardPointUnit} + ${
+                          (stackIndex - 1) * 10
+                        }px)`,
+                        top: `calc(${point.y}${boardPointUnit} + ${
+                          stackIndex * 2
+                        }px)`,
+                        zIndex: 140 + stackIndex
                       }}
                       title={`${owner.nickname}: prisoner ${prisoner.index}`}
                       aria-pressed={selectedPrisoner === prisoner.id}

@@ -4,6 +4,7 @@ import clickCardUrl from "../assets/music/cards/click_card.wav";
 import drawCardUrl from "../assets/music/cards/draw_card.wav";
 import playCardUrl from "../assets/music/cards/play_card.wav";
 import selectCardUrl from "../assets/music/cards/select_card.wav";
+import escapeUrl from "../assets/music/game/escape.wav";
 import yourTurnUrl from "../assets/music/game/your_turn.wav";
 import clickBoardUrl from "../assets/music/ui/click_board.wav";
 import hitButtonUrl from "../assets/music/ui/hit_button.wav";
@@ -11,10 +12,14 @@ import hoverButtonUrl from "../assets/music/ui/hover_button.wav";
 import moveUnitUrl from "../assets/music/units/move.wav";
 import pickUnitUrl from "../assets/music/units/pick.wav";
 
-export const MAX_AUDIO_VOLUME = 0.5;
+export const MAX_MUSIC_VOLUME = 0.1;
+export const MAX_EFFECTS_VOLUME = 0.5;
+export const DEFAULT_EFFECTS_VOLUME = 0.25;
 
 const ENABLED_COOKIE = "eclipcity_sound_enabled";
-const VOLUME_COOKIE = "eclipcity_sound_volume";
+const LEGACY_VOLUME_COOKIE = "eclipcity_sound_volume";
+const MUSIC_VOLUME_COOKIE = "eclipcity_music_volume";
+const EFFECTS_VOLUME_COOKIE = "eclipcity_effects_volume";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 const backgroundUrls = {
@@ -26,6 +31,7 @@ const effectUrls = {
   clickBoard: clickBoardUrl,
   clickCard: clickCardUrl,
   drawCard: drawCardUrl,
+  escape: escapeUrl,
   hitButton: hitButtonUrl,
   hoverButton: hoverButtonUrl,
   moveUnit: moveUnitUrl,
@@ -59,18 +65,28 @@ function writeCookie(name, value) {
   )}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
 }
 
-function clampVolume(value) {
+function clampVolume(value, maximum, fallback) {
   const parsedValue = Number(value);
   if (!Number.isFinite(parsedValue)) {
-    return MAX_AUDIO_VOLUME;
+    return fallback;
   }
-  return Math.min(MAX_AUDIO_VOLUME, Math.max(0, parsedValue));
+  return Math.min(maximum, Math.max(0, parsedValue));
 }
 
 function readPreferences() {
+  const legacyVolume = readCookie(LEGACY_VOLUME_COOKIE);
   return {
     enabled: readCookie(ENABLED_COOKIE) !== "false",
-    volume: clampVolume(readCookie(VOLUME_COOKIE) ?? MAX_AUDIO_VOLUME)
+    musicVolume: clampVolume(
+      readCookie(MUSIC_VOLUME_COOKIE) ?? legacyVolume,
+      MAX_MUSIC_VOLUME,
+      MAX_MUSIC_VOLUME
+    ),
+    effectsVolume: clampVolume(
+      readCookie(EFFECTS_VOLUME_COOKIE),
+      MAX_EFFECTS_VOLUME,
+      DEFAULT_EFFECTS_VOLUME
+    )
   };
 }
 
@@ -99,22 +115,51 @@ class AudioManager {
     this.updatePreferences({ enabled: Boolean(enabled) });
   }
 
-  setVolume(volume) {
-    this.updatePreferences({ volume: clampVolume(volume) });
+  setMusicVolume(volume) {
+    this.updatePreferences({
+      musicVolume: clampVolume(
+        volume,
+        MAX_MUSIC_VOLUME,
+        MAX_MUSIC_VOLUME
+      )
+    });
+  }
+
+  setEffectsVolume(volume) {
+    this.updatePreferences({
+      effectsVolume: clampVolume(
+        volume,
+        MAX_EFFECTS_VOLUME,
+        DEFAULT_EFFECTS_VOLUME
+      )
+    });
   }
 
   updatePreferences(nextPreferences) {
     const previousPreferences = this.preferences;
     this.preferences = {
       enabled: nextPreferences.enabled ?? previousPreferences.enabled,
-      volume:
-        nextPreferences.volume === undefined
-          ? previousPreferences.volume
-          : clampVolume(nextPreferences.volume)
+      musicVolume:
+        nextPreferences.musicVolume === undefined
+          ? previousPreferences.musicVolume
+          : clampVolume(
+              nextPreferences.musicVolume,
+              MAX_MUSIC_VOLUME,
+              MAX_MUSIC_VOLUME
+            ),
+      effectsVolume:
+        nextPreferences.effectsVolume === undefined
+          ? previousPreferences.effectsVolume
+          : clampVolume(
+              nextPreferences.effectsVolume,
+              MAX_EFFECTS_VOLUME,
+              DEFAULT_EFFECTS_VOLUME
+            )
     };
 
     writeCookie(ENABLED_COOKIE, String(this.preferences.enabled));
-    writeCookie(VOLUME_COOKIE, String(this.preferences.volume));
+    writeCookie(MUSIC_VOLUME_COOKIE, String(this.preferences.musicVolume));
+    writeCookie(EFFECTS_VOLUME_COOKIE, String(this.preferences.effectsVolume));
     this.applyPreferences();
     this.listeners.forEach((listener) => listener(this.getPreferences()));
   }
@@ -141,7 +186,7 @@ class AudioManager {
     if (
       !url ||
       !this.preferences.enabled ||
-      this.preferences.volume <= 0 ||
+      this.preferences.effectsVolume <= 0 ||
       typeof Audio === "undefined"
     ) {
       return;
@@ -154,7 +199,7 @@ class AudioManager {
     }
 
     this.activeEffect = nextTrack;
-    nextTrack.volume = this.preferences.volume;
+    nextTrack.volume = this.preferences.effectsVolume;
     nextTrack.currentTime = 0;
     nextTrack.onended = () => {
       if (this.activeEffect === nextTrack) {
@@ -181,12 +226,12 @@ class AudioManager {
   }
 
   applyPreferences() {
-    const shouldPlay =
-      this.preferences.enabled && this.preferences.volume > 0;
+    const shouldPlayBackground =
+      this.preferences.enabled && this.preferences.musicVolume > 0;
 
     if (this.activeBackground) {
-      this.activeBackground.volume = this.preferences.volume;
-      if (shouldPlay) {
+      this.activeBackground.volume = this.preferences.musicVolume;
+      if (shouldPlayBackground) {
         this.play(this.activeBackground);
       } else {
         this.activeBackground.pause();
@@ -194,8 +239,8 @@ class AudioManager {
     }
 
     if (this.activeEffect) {
-      this.activeEffect.volume = this.preferences.volume;
-      if (!shouldPlay) {
+      this.activeEffect.volume = this.preferences.effectsVolume;
+      if (!this.preferences.enabled || this.preferences.effectsVolume <= 0) {
         this.activeEffect.pause();
         this.activeEffect.currentTime = 0;
         this.activeEffect = null;
@@ -227,7 +272,7 @@ class AudioManager {
       if (
         this.activeBackground &&
         this.preferences.enabled &&
-        this.preferences.volume > 0
+        this.preferences.musicVolume > 0
       ) {
         this.play(this.activeBackground);
       }
