@@ -169,10 +169,6 @@
   place-items: center;
 }
 
-.game-table-perspective:has(.tunnel-tile:hover, .tunnel-tile:focus-visible) {
-  z-index: 300;
-}
-
 .game-table {
   --tile-size: 60px;
   position: relative;
@@ -280,7 +276,7 @@
 }
 
 .tunnel-tile:hover {
-  z-index: 110;
+  z-index: 400;
   border-color: var(--color-accent-primary);
   box-shadow:
     0 0 18px rgba(182, 255, 0, 0.38),
@@ -288,7 +284,7 @@
 }
 
 .tunnel-tile:focus-visible {
-  z-index: 110;
+  z-index: 400;
 }
 
 .tunnel-tile.card-match {
