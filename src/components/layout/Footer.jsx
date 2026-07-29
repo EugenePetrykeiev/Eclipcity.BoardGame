@@ -34,8 +34,16 @@ export default function Footer() {
         >
           ENG
         </button>
+        <button
+          type="button"
+          className={language === "de" ? "active" : ""}
+          aria-pressed={language === "de"}
+          onClick={() => setLanguage("de")}
+        >
+          DE
+        </button>
       </div>
-      <div className="social-links" aria-label="Соціальні мережі">
+      <div className="social-links" aria-label={t("common.socialMedia")}>
         {socialLinks.map((link) => (
           <a
             key={link.label}

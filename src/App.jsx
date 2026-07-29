@@ -4,8 +4,10 @@ import GamePage from "./pages/GamePage.jsx";
 import UserPage from "./pages/UserPage.jsx";
 import { getAuthSession } from "./services/authClient.js";
 import { audioManager } from "./services/audioManager.js";
+import { useI18n } from "./i18n/I18nProvider.jsx";
 
 export default function App() {
+  const { t } = useI18n();
   const [homeAuthCheck, setHomeAuthCheck] = useState(
     window.location.pathname === "/" ? "checking" : "done"
   );
@@ -103,7 +105,7 @@ export default function App() {
   }
 
   if (homeAuthCheck === "checking") {
-    return <div className="home-page" aria-label="Перевірка сесії" />;
+    return <div className="home-page" aria-label={t("app.checkingSession")} />;
   }
 
   return <HomePage />;

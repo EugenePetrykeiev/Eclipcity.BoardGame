@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { startGoogleOAuth, submitAuthForm } from "../../services/authClient.js";
+import { useI18n } from "../../i18n/I18nProvider.jsx";
 
 const initialValues = {
   username: "",
@@ -8,47 +9,49 @@ const initialValues = {
   confirmPassword: ""
 };
 
-function validate(mode, values) {
+function validate(mode, values, t) {
   const errors = {};
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const usernamePattern = /^[a-zA-Z0-9_-]{3,24}$/;
 
   if (mode === "register" && !usernamePattern.test(values.username.trim())) {
-    errors.username = "3-24 символи: латиниця, цифри, _ або -.";
+    errors.username = t("auth.usernameValidation");
   }
 
   if (!emailPattern.test(values.email.trim())) {
-    errors.email = "Введи коректний email.";
+    errors.email = t("auth.emailValidation");
   }
 
   if (values.password.length < 8) {
-    errors.password = "Мінімум 8 символів.";
+    errors.password = t("auth.passwordValidation");
   }
 
   if (mode === "register" && values.confirmPassword !== values.password) {
-    errors.confirmPassword = "Паролі мають збігатися.";
+    errors.confirmPassword = t("auth.confirmPasswordValidation");
   }
 
   return errors;
 }
 
 export default function AuthPanel() {
+  const { t } = useI18n();
   const [mode, setMode] = useState("login");
   const [values, setValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const title = mode === "login" ? "Вхід до міста" : "Новий втікач";
-  const submitLabel = mode === "login" ? "Увійти" : "Зареєструватися";
+  const title = mode === "login" ? t("auth.loginTitle") : t("auth.registerTitle");
+  const submitLabel =
+    mode === "login" ? t("auth.loginSubmit") : t("auth.registerSubmit");
 
   const helperText = useMemo(() => {
     if (mode === "login") {
-      return "Увійди, щоб перейти до майбутньої зони кімнат і лобі.";
+      return t("auth.loginHelp");
     }
 
-    return "Створи профіль для мультиплеєрної гри та майбутніх кімнат.";
-  }, [mode]);
+    return t("auth.registerHelp");
+  }, [mode, t]);
 
   function switchMode(nextMode) {
     setMode(nextMode);
@@ -63,7 +66,7 @@ export default function AuthPanel() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    const nextErrors = validate(mode, values);
+    const nextErrors = validate(mode, values, t);
     setErrors(nextErrors);
     setStatus(null);
 
@@ -76,7 +79,7 @@ export default function AuthPanel() {
       const result = await submitAuthForm(mode, values);
       const emailStatus =
         result.email_delivery_status && result.email_delivery_status !== "sent"
-          ? ` Статус email: ${result.email_delivery_status}.`
+          ? ` ${t("auth.emailStatus", { status: result.email_delivery_status })}`
           : "";
       setStatus({
         type: "success",
@@ -90,7 +93,7 @@ export default function AuthPanel() {
     } catch (error) {
       setStatus({
         type: "error",
-        message: error.message || "Не вдалося обробити форму."
+        message: error.message || t("auth.formError")
       });
     } finally {
       setIsSubmitting(false);
@@ -103,27 +106,27 @@ export default function AuthPanel() {
       setIsSubmitting(true);
       setStatus({
         type: "success",
-        message: "Переходимо до Google OAuth..."
+        message: t("auth.googleRedirect")
       });
       startGoogleOAuth(mode);
     } catch (error) {
       setStatus({
         type: "error",
-        message: error.message || "Google OAuth тимчасово недоступний."
+        message: error.message || t("auth.googleError")
       });
       setIsSubmitting(false);
     }
   }
 
   return (
-    <aside className="auth-panel" aria-label="Авторизація Eclipcity">
+    <aside className="auth-panel" aria-label={t("auth.panelLabel")}>
       <div className="panel-heading">
         <p className="panel-kicker">Access terminal</p>
         <h2>{title}</h2>
         <p>{helperText}</p>
       </div>
 
-      <div className="auth-tabs" role="tablist" aria-label="Режим авторизації">
+      <div className="auth-tabs" role="tablist" aria-label={t("auth.modeLabel")}>
         <button
           type="button"
           role="tab"
@@ -131,7 +134,7 @@ export default function AuthPanel() {
           className={mode === "login" ? "active" : ""}
           onClick={() => switchMode("login")}
         >
-          Login
+          {t("auth.loginTab")}
         </button>
         <button
           type="button"
@@ -140,14 +143,14 @@ export default function AuthPanel() {
           className={mode === "register" ? "active" : ""}
           onClick={() => switchMode("register")}
         >
-          Register
+          {t("auth.registerTab")}
         </button>
       </div>
 
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {mode === "register" && (
           <label className="field">
-            <span>Username</span>
+            <span>{t("auth.username")}</span>
             <input
               name="username"
               value={values.username}
@@ -160,7 +163,7 @@ export default function AuthPanel() {
         )}
 
         <label className="field">
-          <span>Email</span>
+          <span>{t("auth.email")}</span>
           <input
             name="email"
             type="email"
@@ -173,7 +176,7 @@ export default function AuthPanel() {
         </label>
 
         <label className="field">
-          <span>Password</span>
+          <span>{t("auth.password")}</span>
           <input
             name="password"
             type="password"
@@ -187,7 +190,7 @@ export default function AuthPanel() {
 
         {mode === "register" && (
           <label className="field">
-            <span>Confirm password</span>
+            <span>{t("auth.confirmPassword")}</span>
             <input
               name="confirmPassword"
               type="password"
@@ -207,12 +210,12 @@ export default function AuthPanel() {
         )}
 
         <button className="primary-button" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Обробка..." : submitLabel}
+          {isSubmitting ? t("auth.processing") : submitLabel}
         </button>
       </form>
 
       <div className="auth-divider">
-        <span>або</span>
+        <span>{t("auth.or")}</span>
       </div>
 
       <button

@@ -43,6 +43,21 @@ describe("game asset manifest", () => {
     assert.equal(new Set(ids).size, ids.length);
   });
 
+  it("provides item names and descriptions in every supported language", () => {
+    for (const item of gameItems) {
+      for (const key of [
+        "nameUk",
+        "descriptionUk",
+        "nameEn",
+        "descriptionEn",
+        "nameDe",
+        "descriptionDe"
+      ]) {
+        assert.ok(item[key]?.trim(), `${item.id}.${key}`);
+      }
+    }
+  });
+
   it("points to existing item, card, and back images", () => {
     assert.equal(assetExists(cardBackImage), true);
     assert.equal(assetExists(prisonerPawnImage), true);

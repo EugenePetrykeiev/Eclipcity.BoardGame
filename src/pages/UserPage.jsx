@@ -745,7 +745,11 @@ export default function UserPage() {
                   <tr key={item.game_id}>
                     <td>
                       {new Intl.DateTimeFormat(
-                        language === "uk" ? "uk-UA" : "en-GB",
+                        language === "uk"
+                          ? "uk-UA"
+                          : language === "de"
+                            ? "de-DE"
+                            : "en-GB",
                         { dateStyle: "medium", timeStyle: "short" }
                       ).format(new Date(item.started_at))}
                     </td>
@@ -1453,6 +1457,14 @@ export default function UserPage() {
                     onClick={() => setLanguage("en")}
                   >
                     EN
+                  </button>
+                  <button
+                    type="button"
+                    className={language === "de" ? "active" : ""}
+                    aria-pressed={language === "de"}
+                    onClick={() => setLanguage("de")}
+                  >
+                    DE
                   </button>
                 </div>
               </div>

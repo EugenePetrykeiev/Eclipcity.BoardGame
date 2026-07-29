@@ -566,9 +566,15 @@
 }
 
 .board-prisoner {
-  z-index: 42;
+  z-index: 500;
   width: clamp(18px, 1.5vw, 22px);
   height: clamp(27px, 2.25vw, 32px);
+}
+
+.board-prisoner:hover,
+.board-prisoner:focus-visible,
+.board-prisoner.selected {
+  z-index: 510;
 }
 
 .board-prisoner .prisoner-token-shape {

@@ -324,13 +324,21 @@ function CardDots({ count }) {
   );
 }
 
+function localizedItemText(item, language) {
+  if (language === "uk") {
+    return { name: item.nameUk, description: item.descriptionUk };
+  }
+  if (language === "de") {
+    return { name: item.nameDe, description: item.descriptionDe };
+  }
+  return { name: item.nameEn, description: item.descriptionEn };
+}
+
 function ItemPopover({ item, language, kind, above = false }) {
   if (!item) {
     return null;
   }
-  const isUkrainian = language === "uk";
-  const name = isUkrainian ? item.nameUk : item.nameEn;
-  const description = isUkrainian ? item.descriptionUk : item.descriptionEn;
+  const { name, description } = localizedItemText(item, language);
 
   return (
     <span
@@ -382,6 +390,7 @@ function PlayerCardBacks({
         {openCards.map((item, index) => (
           (() => {
             const offset = index - (openCards.length - 1) / 2;
+            const localizedItem = localizedItemText(item, language);
             return (
               <button
                 type="button"
@@ -389,7 +398,7 @@ function PlayerCardBacks({
                 className="hand-card-button"
                 aria-disabled={disabled}
                 data-audio-scope="card"
-                aria-label={language === "uk" ? item.nameUk : item.nameEn}
+                aria-label={localizedItem.name}
                 onClick={() => onCardClick?.(item)}
                 onPointerEnter={(event) => onCardHover?.(item, event)}
                 onPointerLeave={() => onCardLeave?.(item)}
@@ -399,7 +408,7 @@ function PlayerCardBacks({
                   zIndex: index + 1
                 }}
               >
-                <img src={item.cardImage} alt={item.nameUk} />
+                <img src={item.cardImage} alt={localizedItem.name} />
                 <ItemPopover item={item} language={language} kind="card" above />
               </button>
             );
@@ -481,9 +490,9 @@ function PlayerSeat({
   );
 }
 
-function gameActionMessage(message) {
+function gameActionMessage(message, t) {
   if (!message) {
-    return "Хід неможливий.";
+    return t("gamePage.actionUnavailable");
   }
 
   if (
@@ -491,23 +500,23 @@ function gameActionMessage(message) {
     message.includes("nearest occupied tile") ||
     message.includes("only to the nearest occupied")
   ) {
-    return "Хід неможливий: місце зайняте або недоступне.";
+    return t("gamePage.actionTileUnavailable");
   }
 
   if (message.includes("Selected card")) {
-    return "Цієї карти немає в руці.";
+    return t("gamePage.actionCardMissing");
   }
 
   if (message.includes("Selected prisoner")) {
-    return "Спочатку оберіть свого в'язня.";
+    return t("gamePage.actionSelectPrisoner");
   }
 
   if (message.includes("not this player's turn")) {
-    return "Зараз хід іншого гравця.";
+    return t("gamePage.actionOtherTurn");
   }
 
   if (message.includes("No actions left")) {
-    return "Дії на цей хід уже використані.";
+    return t("gamePage.actionLimitReached");
   }
 
   return message;
@@ -798,7 +807,7 @@ export default function GamePage() {
     } catch (requestError) {
       setActionNotice({
         id: Date.now(),
-        message: gameActionMessage(requestError.message || "Game action failed.")
+        message: gameActionMessage(requestError.message || "Game action failed.", t)
       });
     } finally {
       setIsActionPending(false);
@@ -810,7 +819,7 @@ export default function GamePage() {
     if (!game || !selectedPrisoner || !canUseActions) {
       setActionNotice({
         id: Date.now(),
-        message: "Оберіть в'язня перед картою."
+        message: t("gamePage.selectPrisonerBeforeCard")
       });
       return;
     }
@@ -1135,7 +1144,7 @@ export default function GamePage() {
           <p>{actionNotice.message}</p>
           <button
             type="button"
-            aria-label="Закрити повідомлення"
+            aria-label={t("gamePage.closeNotice")}
             onClick={() => setActionNotice(null)}
           >
             ×
@@ -1245,7 +1254,7 @@ export default function GamePage() {
             />
           )}
           {isMyTurn && (
-            <aside className="turn-controls" aria-label="Turn controls">
+            <aside className="turn-controls" aria-label={t("gamePage.turnControls")}>
               <div className="turn-counter">
                 <i className="turn-pulse" />
                 <strong>{actionsTaken}/{actionsPerTurn}</strong>
@@ -1255,7 +1264,7 @@ export default function GamePage() {
                 onClick={handleEndTurn}
                 disabled={!canUseActions}
               >
-                Завершити хід
+                {t("gamePage.endTurn")}
               </button>
             </aside>
           )}
@@ -1397,7 +1406,7 @@ export default function GamePage() {
               <button
                 type="button"
                 className="deck-stack"
-                aria-label={language === "uk" ? "Колода" : "Deck"}
+                aria-label={t("gamePage.deck")}
                 onClick={(event) => {
                   event.stopPropagation();
                   setDeckTiltCount((count) => count + 1);
@@ -1443,6 +1452,9 @@ export default function GamePage() {
               {game.route_tiles.map((tile, index) => {
                 const point = boardPoints[index];
                 const item = itemMap.get(tile.item_id);
+                const localizedItem = item
+                  ? localizedItemText(item, language)
+                  : null;
                 const tilePrisoners = prisonersByTile.get(tile.index) || [];
                 const hasOccupants = tilePrisoners.length > 0;
                 return (
@@ -1458,10 +1470,8 @@ export default function GamePage() {
                       top: `${point.y}${boardPointUnit}`
                     }}
                     aria-label={
-                      item
-                        ? `${language === "uk" ? item.nameUk : item.nameEn}, ${
-                            language === "uk" ? "тайл" : "tile"
-                          } ${tile.index}`
+                      localizedItem
+                        ? `${localizedItem.name}, ${t("gamePage.tile")} ${tile.index}`
                         : tile.item_id
                     }
                     onClick={() => handleTileClick(tile.index)}
@@ -1512,12 +1522,11 @@ export default function GamePage() {
                         "--pawn-mask": `url("${prisonerPawnImage}")`,
                         left: `calc(${point.x}${boardPointUnit} + ${
                           (stackIndex - 1) * 10
-                        }px)`,
-                        top: `calc(${point.y}${boardPointUnit} + ${
-                          stackIndex * 2
-                        }px)`,
-                        zIndex: 140 + stackIndex
-                      }}
+                                }px)`,
+                                top: `calc(${point.y}${boardPointUnit} + ${
+                                  stackIndex * 2
+                                }px)`
+                              }}
                       title={`${owner.nickname}: prisoner ${prisoner.index}`}
                       aria-pressed={selectedPrisoner === prisoner.id}
                       onClick={() => selectPrisoner(prisoner.id)}

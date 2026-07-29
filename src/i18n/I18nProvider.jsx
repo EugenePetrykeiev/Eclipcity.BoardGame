@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { deTranslations } from "./de.js";
 
 const STORAGE_KEY = "eclipcity_language";
 const DEFAULT_LANGUAGE = "uk";
@@ -11,6 +12,51 @@ const translations = {
     "common.backHome": "Повернутися на головну",
     "common.playersCount": "{current} з {max} гравців у лоббі",
     "common.clipboardError": "Не вдалося скопіювати ID лоббі.",
+    "common.socialMedia": "Соціальні мережі",
+    "app.checkingSession": "Перевірка сесії",
+    "nav.main": "Основна навігація",
+    "nav.about": "Про гру",
+    "nav.howToPlay": "Як грати",
+    "home.label": "Головна сторінка Eclipcity",
+    "home.infoLabel": "Про гру та правила",
+    "home.aboutKicker": "Про гру",
+    "home.aboutTitle": "Втеча крізь місто, яке не відпускає",
+    "home.aboutText":
+      "Eclipcity — браузерна мультиплеєрна карткова гра для максимум п'яти гравців. Кожна команда веде сімох втікачів тунелем із символів, де кожна карта змінює темп гонитви.",
+    "home.howKicker": "Як грати",
+    "home.howTitle": "Рухайся вперед або відступай за ресурсами",
+    "home.howText":
+      "Розігруй карти предметів, щоб рухати в'язнів до найближчої вільної клітинки. Коли карт бракує, повертайся назад на зайняті позиції та добирай нові ресурси для фінального ривка.",
+    "home.tagline":
+      "2150 рік. Команди втікачів пробиваються до тунелю за межі міста, граючи картами предметів, ризиком і останнім запасом сміливості.",
+    "home.statsLabel": "Ключові параметри гри",
+    "home.statTiles": "символів тунелю",
+    "home.statItems": "типів предметів",
+    "home.statPlayers": "гравців максимум",
+    "auth.panelLabel": "Авторизація Eclipcity",
+    "auth.modeLabel": "Режим авторизації",
+    "auth.loginTab": "Вхід",
+    "auth.registerTab": "Реєстрація",
+    "auth.loginTitle": "Вхід до міста",
+    "auth.registerTitle": "Новий втікач",
+    "auth.loginSubmit": "Увійти",
+    "auth.registerSubmit": "Зареєструватися",
+    "auth.loginHelp": "Увійди, щоб перейти до зони кімнат і лобі.",
+    "auth.registerHelp": "Створи профіль для мультиплеєрної гри та майбутніх кімнат.",
+    "auth.username": "Ім'я користувача",
+    "auth.email": "Email",
+    "auth.password": "Пароль",
+    "auth.confirmPassword": "Підтвердження пароля",
+    "auth.usernameValidation": "3–24 символи: латиниця, цифри, _ або -.",
+    "auth.emailValidation": "Введи коректний email.",
+    "auth.passwordValidation": "Мінімум 8 символів.",
+    "auth.confirmPasswordValidation": "Паролі мають збігатися.",
+    "auth.emailStatus": "Статус email: {status}.",
+    "auth.formError": "Не вдалося обробити форму.",
+    "auth.googleRedirect": "Переходимо до Google OAuth...",
+    "auth.googleError": "Google OAuth тимчасово недоступний.",
+    "auth.processing": "Обробка...",
+    "auth.or": "або",
     "profile.runnerProfile": "Runner profile",
     "profile.unknownUser": "Невідомий користувач",
     "profile.matchesPlayed": "матчів зіграно",
@@ -148,6 +194,18 @@ const translations = {
     "gamePage.reconnectText":
       "У тебе є активна ігрова сесія. Перепідключися до неї, щоб не втратити місце в команді.",
     "gamePage.reconnect": "Перепідключитися",
+    "gamePage.turnControls": "Керування ходом",
+    "gamePage.endTurn": "Завершити хід",
+    "gamePage.deck": "Колода",
+    "gamePage.tile": "тайл",
+    "gamePage.closeNotice": "Закрити повідомлення",
+    "gamePage.actionUnavailable": "Хід неможливий.",
+    "gamePage.actionTileUnavailable": "Хід неможливий: місце зайняте або недоступне.",
+    "gamePage.actionCardMissing": "Цієї карти немає в руці.",
+    "gamePage.actionSelectPrisoner": "Спочатку оберіть свого в'язня.",
+    "gamePage.actionOtherTurn": "Зараз хід іншого гравця.",
+    "gamePage.actionLimitReached": "Дії на цей хід уже використані.",
+    "gamePage.selectPrisonerBeforeCard": "Оберіть в'язня перед картою.",
     "stage.access": "Eclipcity access",
     "stage.title": "Лоббі та ігровий стіл з'являться тут",
     "stage.text":
@@ -229,6 +287,51 @@ const translations = {
     "common.backHome": "Back to home",
     "common.playersCount": "{current} of {max} players in lobby",
     "common.clipboardError": "Could not copy lobby ID.",
+    "common.socialMedia": "Social media",
+    "app.checkingSession": "Checking session",
+    "nav.main": "Main navigation",
+    "nav.about": "About the game",
+    "nav.howToPlay": "How to play",
+    "home.label": "Eclipcity home page",
+    "home.infoLabel": "About the game and rules",
+    "home.aboutKicker": "About the game",
+    "home.aboutTitle": "Escape through a city that refuses to let go",
+    "home.aboutText":
+      "Eclipcity is a browser-based multiplayer card game for up to five players. Each team leads seven escapees through a tunnel of symbols, where every card changes the pace of the race.",
+    "home.howKicker": "How to play",
+    "home.howTitle": "Move forward or retreat for resources",
+    "home.howText":
+      "Play item cards to move prisoners to the nearest free tile. When cards run low, retreat to occupied positions and draw new resources for the final push.",
+    "home.tagline":
+      "The year is 2150. Teams of escapees fight their way toward a tunnel beyond the city, armed with item cards, nerve, and their last reserve of courage.",
+    "home.statsLabel": "Key game details",
+    "home.statTiles": "tunnel symbols",
+    "home.statItems": "item types",
+    "home.statPlayers": "players maximum",
+    "auth.panelLabel": "Eclipcity authentication",
+    "auth.modeLabel": "Authentication mode",
+    "auth.loginTab": "Login",
+    "auth.registerTab": "Register",
+    "auth.loginTitle": "Enter the city",
+    "auth.registerTitle": "New escapee",
+    "auth.loginSubmit": "Log in",
+    "auth.registerSubmit": "Register",
+    "auth.loginHelp": "Log in to enter the rooms and lobby area.",
+    "auth.registerHelp": "Create a profile for multiplayer games and future rooms.",
+    "auth.username": "Username",
+    "auth.email": "Email",
+    "auth.password": "Password",
+    "auth.confirmPassword": "Confirm password",
+    "auth.usernameValidation": "Use 3–24 Latin letters, digits, _ or -.",
+    "auth.emailValidation": "Enter a valid email address.",
+    "auth.passwordValidation": "Use at least 8 characters.",
+    "auth.confirmPasswordValidation": "Passwords must match.",
+    "auth.emailStatus": "Email status: {status}.",
+    "auth.formError": "The form could not be processed.",
+    "auth.googleRedirect": "Redirecting to Google OAuth...",
+    "auth.googleError": "Google OAuth is temporarily unavailable.",
+    "auth.processing": "Processing...",
+    "auth.or": "or",
     "profile.runnerProfile": "Runner profile",
     "profile.unknownUser": "Unknown user",
     "profile.matchesPlayed": "matches played",
@@ -366,6 +469,18 @@ const translations = {
     "gamePage.reconnectText":
       "You have an active game session. Reconnect to keep your place on the team.",
     "gamePage.reconnect": "Reconnect",
+    "gamePage.turnControls": "Turn controls",
+    "gamePage.endTurn": "End turn",
+    "gamePage.deck": "Deck",
+    "gamePage.tile": "tile",
+    "gamePage.closeNotice": "Close notification",
+    "gamePage.actionUnavailable": "This move is not possible.",
+    "gamePage.actionTileUnavailable": "This move is not possible: the space is occupied or unavailable.",
+    "gamePage.actionCardMissing": "That card is not in your hand.",
+    "gamePage.actionSelectPrisoner": "Select one of your prisoners first.",
+    "gamePage.actionOtherTurn": "It is another player's turn.",
+    "gamePage.actionLimitReached": "You have already used all actions for this turn.",
+    "gamePage.selectPrisonerBeforeCard": "Select a prisoner before playing a card.",
     "stage.access": "Eclipcity access",
     "stage.title": "Lobby and game table will appear here",
     "stage.text":
@@ -439,7 +554,8 @@ const translations = {
     "modal.leave": "Leave lobby",
     "modal.currentClosedJoin": "Current lobby closed. Choose a new one or enter a code.",
     "modal.currentClosedLocal": "Current lobby closed. Local mode will be added later."
-  }
+  },
+  de: deTranslations
 };
 
 const I18nContext = createContext(null);
@@ -481,7 +597,11 @@ export function I18nProvider({ children }) {
       language,
       setLanguage,
       t(key, params) {
-        const translation = translations[language][key] ?? translations.uk[key] ?? key;
+        const translation =
+          translations[language][key] ??
+          translations.en[key] ??
+          translations.uk[key] ??
+          key;
         return interpolate(translation, params);
       }
     }),
